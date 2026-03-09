@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Generate cache key
-    const cacheKey = generateCacheKey(url, width || 1280, height || 720);
+    const cacheKey = generateCacheKey(url, width || 1800, height || 945);
 
     // Check cache first
     let screenshotBuffer: Buffer | null = null;

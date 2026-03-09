@@ -1,18 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 
 export default function ScreenshotDashboard() {
   const [url, setUrl] = useState('');
-  const [width, setWidth] = useState('1280');
-  const [height, setHeight] = useState('720');
+  const [width, setWidth] = useState('1800');
+  const [height, setHeight] = useState('945');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [screenshotUrl, setScreenshotUrl] = useState('');
   const [cacheStatus, setCacheStatus] = useState('');
+  const [serverUrl, setServerUrl] = useState('');
 
   const handleCapture = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +58,12 @@ export default function ScreenshotDashboard() {
     }
   };
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setServerUrl(window.location.origin);
+    }
+  }, []);
+
   return (
     <main className="min-h-screen bg-background p-6">
       <div className="mx-auto max-w-6xl">
@@ -91,7 +98,7 @@ export default function ScreenshotDashboard() {
                   </label>
                   <Input
                     type="number"
-                    placeholder="1280"
+                    placeholder="1800"
                     value={width}
                     onChange={(e) => setWidth(e.target.value)}
                     disabled={loading}
@@ -106,7 +113,7 @@ export default function ScreenshotDashboard() {
                   </label>
                   <Input
                     type="number"
-                    placeholder="720"
+                    placeholder="945"
                     value={height}
                     onChange={(e) => setHeight(e.target.value)}
                     disabled={loading}
@@ -142,7 +149,7 @@ export default function ScreenshotDashboard() {
                 <div>
                   <div className="text-muted-foreground">GET</div>
                   <div className="text-foreground break-words">
-                    /api/screenshot?url=&lt;url&gt;&width=&lt;width&gt;&height=&lt;height&gt;
+                    {serverUrl || '[server-url]'}/api/screenshot?url=&lt;url&gt;&width=&lt;width&gt;&height=&lt;height&gt;
                   </div>
                 </div>
                 
@@ -150,15 +157,15 @@ export default function ScreenshotDashboard() {
                   <div className="pt-2 border-t">
                     <div className="text-muted-foreground mb-1">Your API URL:</div>
                     <div className="text-foreground break-words bg-background p-2 rounded border">
-                      /api/screenshot?url={encodeURIComponent(url)}&width={width || '1280'}&height={height || '720'}
+                      {serverUrl}/api/screenshot?url={encodeURIComponent(url)}&width={width || '1800'}&height={height || '945'}
                     </div>
                   </div>
                 )}
               </div>
               <div className="mt-3 text-sm text-muted-foreground space-y-1">
                 <div><strong>url</strong> - Required. URL to screenshot</div>
-                <div><strong>width</strong> - Optional. Default: 1280</div>
-                <div><strong>height</strong> - Optional. Default: 720</div>
+                <div><strong>width</strong> - Optional. Default: 1800</div>
+                <div><strong>height</strong> - Optional. Default: 945</div>
               </div>
             </Card>
           </div>

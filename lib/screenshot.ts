@@ -4,8 +4,8 @@
 
 import playwright from 'playwright';
 
-const DEFAULT_WIDTH = 1280;
-const DEFAULT_HEIGHT = 720;
+const DEFAULT_WIDTH = 1800;
+const DEFAULT_HEIGHT = 945;
 const MAX_WIDTH = 3840;
 const MAX_HEIGHT = 2160;
 const SCREENSHOT_TIMEOUT = 30000; // 30 seconds
