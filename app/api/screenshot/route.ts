@@ -1,6 +1,8 @@
 /**
  * Screenshot API route
  * GET /api/screenshot?url=<url>&width=<width>&height=<height>
+ * 
+ * Captures screenshots of web pages with domain whitelist validation and caching
  */
 
 import { NextRequest, NextResponse } from 'next/server';
