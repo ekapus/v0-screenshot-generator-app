@@ -33,7 +33,7 @@ export async function captureScreenshot(
       headless: true,
     });
 
-    const context = await browser.createBrowserContext({
+    const context = await browser.newContext({
       viewport: { width, height },
     });
 
