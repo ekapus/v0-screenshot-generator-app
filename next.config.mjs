@@ -1,10 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   images: {
     unoptimized: true,
+  },
+  onDemandEntries: {
+    maxInactiveAge: 0,
+    pagesBufferLength: 0,
   },
 }
 
