@@ -1,9 +1,8 @@
 /**
- * Screenshot utility using Playwright with serverless-compatible Chromium
+ * Screenshot utility using Playwright
  */
 
-import chromium from '@sparticuz/chromium';
-import { chromium as playwrightChromium } from 'playwright-core';
+import { chromium } from 'playwright';
 
 const DEFAULT_WIDTH = 1800;
 const DEFAULT_HEIGHT = 945;
@@ -30,12 +29,7 @@ export async function captureScreenshot(
   
   let browser;
   try {
-    // Get the executable path for @sparticuz/chromium
-    const executablePath = await chromium.executablePath();
-    
-    browser = await playwrightChromium.launch({
-      executablePath,
-      args: chromium.args,
+    browser = await chromium.launch({
       headless: true,
     });
 
