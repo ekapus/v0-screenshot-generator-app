@@ -1,14 +1,12 @@
 /**
- * Screenshot utility using Playwright
+ * Screenshot utility using a serverless-compatible approach
+ * Uses a free screenshot API that works on Vercel functions
  */
-
-import { chromium } from 'playwright';
 
 const DEFAULT_WIDTH = 1800;
 const DEFAULT_HEIGHT = 945;
 const MAX_WIDTH = 3840;
 const MAX_HEIGHT = 2160;
-const SCREENSHOT_TIMEOUT = 30000; // 30 seconds
 
 export interface ScreenshotOptions {
   width?: number;
@@ -21,48 +19,37 @@ function validateDimensions(width?: number, height?: number) {
   return { width: w, height: h };
 }
 
+/**
+ * Capture screenshot using a public screenshot API
+ * This approach works reliably on Vercel serverless functions
+ */
 export async function captureScreenshot(
   url: string,
   options: ScreenshotOptions = {}
 ): Promise<Buffer> {
   const { width, height } = validateDimensions(options.width, options.height);
   
-  let browser;
   try {
-    browser = await chromium.launch({
-      headless: true,
+    // Use a free public screenshot API
+    // api.screenshotapi.net is a free service that provides screenshots
+    const apiUrl = `https://api.screenshotapi.net/v3/capture?url=${encodeURIComponent(url)}&width=${width}&height=${height}&format=png&device=desktop`;
+    
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'image/png',
+      },
+      signal: AbortSignal.timeout(30000), // 30 second timeout
     });
 
-    const context = await browser.newContext({
-      viewport: { width, height },
-    });
-
-    const page = await context.newPage();
-
-    // Set a timeout for page load
-    page.setDefaultTimeout(SCREENSHOT_TIMEOUT);
-    page.setDefaultNavigationTimeout(SCREENSHOT_TIMEOUT);
-
-    try {
-      await page.goto(url, { waitUntil: 'networkidle' });
-    } catch (error) {
-      console.error('[Screenshot] Navigation timeout or error:', error);
-      // Continue anyway - we may have partial page content
+    if (!response.ok) {
+      throw new Error(`Failed to capture screenshot: ${response.statusText}`);
     }
 
-    // Wait a bit for any animations/lazy loading
-    await page.waitForTimeout(1000);
-
-    const screenshot = await page.screenshot({
-      type: 'png',
-      fullPage: false,
-    });
-
-    await context.close();
-    return screenshot;
-  } finally {
-    if (browser) {
-      await browser.close();
-    }
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    console.error('[Screenshot] Capture error:', error);
+    throw error;
   }
 }
