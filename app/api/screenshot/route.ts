@@ -37,7 +37,9 @@ export async function GET(request: NextRequest) {
     // Check whitelist
     if (!isWhitelistedDomain(url)) {
       return NextResponse.json(
-        { error: 'Domain not whitelisted' },
+        { 
+          error: 'Domain not whitelisted. Please configure WHITELISTED_DOMAINS environment variable in your Vercel project settings with a comma-separated list of allowed domains (e.g., "example.com,github.com,*.vercel.app")' 
+        },
         { status: 403 }
       );
     }

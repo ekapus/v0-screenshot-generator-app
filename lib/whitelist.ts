@@ -14,8 +14,10 @@ export function isValidUrl(urlString: string): boolean {
 }
 
 export function isWhitelistedDomain(urlString: string): boolean {
+  // If no domains are whitelisted, log a warning and reject
   if (WHITELISTED_DOMAINS.length === 0) {
-    console.warn('[Screenshot] No whitelisted domains configured');
+    console.error('[Screenshot] WHITELISTED_DOMAINS environment variable not set. Please configure it in your Vercel project settings.');
+    console.error('[Screenshot] Set WHITELISTED_DOMAINS to a comma-separated list of allowed domains (e.g., "example.com,github.com,*.vercel.app")');
     return false;
   }
 
@@ -26,8 +28,8 @@ export function isWhitelistedDomain(urlString: string): boolean {
     return WHITELISTED_DOMAINS.some(domain => {
       // Support both exact matches and wildcard subdomains
       if (domain.startsWith('*.')) {
-        const baseomain = domain.slice(2);
-        return hostname === baseomain || hostname.endsWith('.' + baseomain);
+        const baseDomain = domain.slice(2);
+        return hostname === baseDomain || hostname.endsWith('.' + baseDomain);
       }
       return hostname === domain;
     });
