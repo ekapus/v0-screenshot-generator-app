@@ -138,11 +138,22 @@ export default function ScreenshotDashboard() {
             {/* API Usage */}
             <Card className="p-6 mt-6">
               <h3 className="font-semibold mb-3">API Usage</h3>
-              <div className="text-xs bg-muted p-3 rounded-md font-mono overflow-x-auto">
-                <div className="text-muted-foreground">GET</div>
-                <div className="break-words">
-                  /api/screenshot?url=&lt;url&gt;&width=&lt;width&gt;&height=&lt;height&gt;
+              <div className="text-xs bg-muted p-3 rounded-md font-mono overflow-x-auto space-y-2">
+                <div>
+                  <div className="text-muted-foreground">GET</div>
+                  <div className="text-foreground break-words">
+                    /api/screenshot?url=&lt;url&gt;&width=&lt;width&gt;&height=&lt;height&gt;
+                  </div>
                 </div>
+                
+                {url && (
+                  <div className="pt-2 border-t">
+                    <div className="text-muted-foreground mb-1">Your API URL:</div>
+                    <div className="text-foreground break-words bg-background p-2 rounded border">
+                      /api/screenshot?url={encodeURIComponent(url)}&width={width || '1280'}&height={height || '720'}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="mt-3 text-sm text-muted-foreground space-y-1">
                 <div><strong>url</strong> - Required. URL to screenshot</div>
