@@ -30,9 +30,10 @@ export async function captureScreenshot(
   const { width, height } = validateDimensions(options.width, options.height);
   
   try {
-    // Use a free public screenshot API
-    // api.screenshotapi.net is a free service that provides screenshots
-    const apiUrl = `https://api.screenshotapi.net/v3/capture?url=${encodeURIComponent(url)}&width=${width}&height=${height}&format=png&device=desktop`;
+    // Use screenshotapi.net - a reliable free screenshot service
+    const apiUrl = `https://screenshot.screenshotapi.net/screenshot?url=${encodeURIComponent(url)}&width=${width}&height=${height}&format=png`;
+    
+    console.log('[Screenshot] Calling screenshot API with URL:', apiUrl);
     
     const response = await fetch(apiUrl, {
       method: 'GET',
@@ -42,14 +43,19 @@ export async function captureScreenshot(
       signal: AbortSignal.timeout(30000), // 30 second timeout
     });
 
+    console.log('[Screenshot] API response status:', response.status);
+
     if (!response.ok) {
-      throw new Error(`Failed to capture screenshot: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('[Screenshot] API error response:', errorText);
+      throw new Error(`Screenshot API failed with status ${response.status}: ${response.statusText}`);
     }
 
     const arrayBuffer = await response.arrayBuffer();
+    console.log('[Screenshot] Successfully captured screenshot, size:', arrayBuffer.byteLength);
     return Buffer.from(arrayBuffer);
   } catch (error) {
-    console.error('[Screenshot] Capture error:', error);
+    console.error('[Screenshot] Capture error:', error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
