@@ -27,7 +27,6 @@ export async function getCachedScreenshot(
     const cached = urlCache.get(cacheKey);
 
     if (cached && cached.expiresAt > Date.now()) {
-      console.log('[Screenshot] Cache hit for key:', cacheKey);
       const response = await fetch(cached.url);
       if (response.ok) {
         const arrayBuffer = await response.arrayBuffer();
@@ -37,7 +36,6 @@ export async function getCachedScreenshot(
 
     return null;
   } catch (error) {
-    console.error('[Screenshot] Error retrieving from cache:', error);
     return null;
   }
 }
@@ -58,10 +56,8 @@ export async function cacheScreenshot(
       expiresAt: Date.now() + 24 * 60 * 60 * 1000,
     });
 
-    console.log('[Screenshot] Cached screenshot at:', result.url);
     return result.url;
   } catch (error) {
-    console.error('[Screenshot] Error caching screenshot:', error);
     throw error;
   }
 }
@@ -74,6 +70,6 @@ export async function removeCachedScreenshot(cacheKey: string): Promise<void> {
       urlCache.delete(cacheKey);
     }
   } catch (error) {
-    console.error('[Screenshot] Error removing from cache:', error);
+    // Silently ignore deletion errors
   }
 }
