@@ -1,5 +1,6 @@
 /**
  * Cache utility for Vercel Blob storage
+ * Uses Vercel Blob for persistent storage with in-memory URL tracking
  */
 
 import { put, del } from '@vercel/blob';
