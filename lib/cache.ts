@@ -1,12 +1,13 @@
-import { put, del } from '@vercel/blob';
-import crypto from 'crypto';
-
+// Simple in-memory cache for screenshots
 interface CacheEntry {
-  url: string;
+  buffer: Buffer;
   expiresAt: number;
 }
 
-const urlCache = new Map<string, CacheEntry>();
+const screenshotCache = new Map<string, CacheEntry>();
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+import crypto from 'crypto';
 
 export function generateCacheKey(
   url: string,
@@ -17,59 +18,38 @@ export function generateCacheKey(
     .createHash('sha256')
     .update(`${url}:${width}:${height}`)
     .digest('hex');
-  return `screenshots/${hash}.png`;
+  return hash;
 }
 
 export async function getCachedScreenshot(
   cacheKey: string
 ): Promise<Buffer | null> {
-  try {
-    const cached = urlCache.get(cacheKey);
-
-    if (cached && cached.expiresAt > Date.now()) {
-      const response = await fetch(cached.url);
-      if (response.ok) {
-        const arrayBuffer = await response.arrayBuffer();
-        return Buffer.from(arrayBuffer);
-      }
-    }
-
-    return null;
-  } catch (error) {
-    return null;
+  const cached = screenshotCache.get(cacheKey);
+  
+  if (cached && cached.expiresAt > Date.now()) {
+    console.log('[Screenshot] Cache HIT for key:', cacheKey);
+    return cached.buffer;
   }
+  
+  if (cached) {
+    screenshotCache.delete(cacheKey);
+  }
+  
+  console.log('[Screenshot] Cache MISS for key:', cacheKey);
+  return null;
 }
 
 export async function cacheScreenshot(
   cacheKey: string,
   buffer: Buffer
-): Promise<string> {
-  try {
-    const result = await put(cacheKey, buffer, {
-      access: 'private',
-      contentType: 'image/png',
-      allowOverwrite: true,
-    });
-
-    urlCache.set(cacheKey, {
-      url: result.url,
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-    });
-
-    return result.url;
-  } catch (error) {
-    throw error;
-  }
+): Promise<void> {
+  screenshotCache.set(cacheKey, {
+    buffer,
+    expiresAt: Date.now() + CACHE_TTL,
+  });
+  console.log('[Screenshot] Cached screenshot for key:', cacheKey);
 }
 
 export async function removeCachedScreenshot(cacheKey: string): Promise<void> {
-  try {
-    const cached = urlCache.get(cacheKey);
-    if (cached) {
-      await del(cached.url);
-      urlCache.delete(cacheKey);
-    }
-  } catch (error) {
-    // Silently ignore deletion errors
-  }
+  screenshotCache.delete(cacheKey);
 }
