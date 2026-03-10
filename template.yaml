@@ -19,6 +19,10 @@ Globals:
     Runtime: nodejs20.x
     Architectures:
       - x86_64
+    Tags:
+      Service: Screenshot Service
+      Component: Lambda Function
+      ManagedBy: SAM
 
 Resources:
   ScreenshotFunction:
@@ -33,6 +37,11 @@ Resources:
       Environment:
         Variables:
           NODE_OPTIONS: '--max-old-space-size=2816'
+      Tags:
+        Service: Screenshot Service
+        Component: Lambda Function
+        Purpose: Screenshot Generation
+        ManagedBy: SAM
       Events:
         ApiEvent:
           Type: Api
@@ -49,6 +58,11 @@ Resources:
       EndpointConfiguration:
         Types:
           - REGIONAL
+      Tags:
+        Service: Screenshot Service
+        Component: API Gateway
+        Purpose: Screenshot API Endpoint
+        ManagedBy: SAM
 
   ScreenshotResource:
     Type: AWS::ApiGateway::Resource
@@ -76,6 +90,25 @@ Resources:
     Properties:
       RestApiId: !Ref ScreenshotApi
       StageName: prod
+      Tags:
+        Service: Screenshot Service
+        Component: API Deployment
+        Purpose: Production Stage
+        ManagedBy: SAM
+
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref ScreenshotApi
+      DeploymentId: !Ref ApiDeployment
+      StageName: prod
+      TracingEnabled: true
+      LoggingLevel: INFO
+      Tags:
+        Service: Screenshot Service
+        Component: API Stage
+        Purpose: Production Deployment
+        ManagedBy: SAM
 
   LambdaApiPermission:
     Type: AWS::Lambda::Permission
@@ -89,11 +122,31 @@ Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint for screenshot generation
     Value: !Sub https://${ScreenshotApi}.execute-api.${AWS::Region}.amazonaws.com/prod/screenshot
+    Export:
+      Name: !Sub ${AWS::StackName}-ApiEndpoint
+    Tags:
+      Service: Screenshot Service
   
   FunctionArn:
     Description: Lambda function ARN
     Value: !GetAtt ScreenshotFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-FunctionArn
+    Tags:
+      Service: Screenshot Service
   
   FunctionName:
     Description: Lambda function name
     Value: !Ref ScreenshotFunction
+    Export:
+      Name: !Sub ${AWS::StackName}-FunctionName
+    Tags:
+      Service: Screenshot Service
+  
+  ApiId:
+    Description: API Gateway REST API ID
+    Value: !Ref ScreenshotApi
+    Export:
+      Name: !Sub ${AWS::StackName}-ApiId
+    Tags:
+      Service: Screenshot Service
