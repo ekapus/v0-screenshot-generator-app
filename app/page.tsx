@@ -1,195 +1,159 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
 
-export default function ScreenshotDashboard() {
-  const [url, setUrl] = useState('');
-  const [width, setWidth] = useState('1800');
-  const [height, setHeight] = useState('945');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [screenshotUrl, setScreenshotUrl] = useState('');
-  const [cacheStatus, setCacheStatus] = useState('');
-  const [serverUrl, setServerUrl] = useState('');
+export default function OGImageGenerator() {
+  const [title, setTitle] = useState('My Awesome Article');
+  const [description, setDescription] = useState('Learn how to generate dynamic OG images');
+  const [bgColor, setBgColor] = useState('#ffffff');
+  const [imageUrl, setImageUrl] = useState('');
+  const [previewUrl, setPreviewUrl] = useState('');
 
-  const handleCapture = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setCacheStatus('');
-    setScreenshotUrl('');
-
-    if (!url) {
-      setError('Please enter a URL');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const params = new URLSearchParams({
-        url,
-        ...(width && { width }),
-        ...(height && { height }),
-      });
-
-      const response = await fetch(`/api/screenshot?${params}`, {
-        method: 'GET',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to capture screenshot');
-        return;
-      }
-
-      const cacheHeader = response.headers.get('X-Cache');
-      setCacheStatus(cacheHeader || 'UNKNOWN');
-
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      setScreenshotUrl(objectUrl);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
+  const generatePreview = () => {
+    const params = new URLSearchParams({
+      title,
+      ...(description && { description }),
+      ...(bgColor && { bg: bgColor }),
+      ...(imageUrl && { image: imageUrl }),
+    });
+    setPreviewUrl(`/api/og?${params}`);
   };
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setServerUrl(window.location.origin);
-    }
-  }, []);
+  const copyUrl = () => {
+    navigator.clipboard.writeText(previewUrl);
+  };
 
   return (
-    <main className="min-h-screen bg-background p-6">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold tracking-tight mb-2">Screenshot API</h1>
-          <p className="text-lg text-muted-foreground">
-            Capture screenshots of whitelisted domains with configurable dimensions
-          </p>
+    <main className="min-h-screen bg-background p-8">
+      <div className="max-w-4xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <h1 className="text-4xl font-bold">OG Image Generator</h1>
+          <p className="text-muted-foreground">Generate dynamic Open Graph images for your content</p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Form */}
-          <div className="lg:col-span-1">
+        {/* Generator */}
+        <Card className="p-6 space-y-6">
+          <div className="space-y-4">
+            {/* Title */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Title</label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter image title..."
+                maxLength={100}
+              />
+              <p className="text-xs text-muted-foreground mt-1">{title.length}/100</p>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Description (optional)</label>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Enter description..."
+                maxLength={150}
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground mt-1">{description.length}/150</p>
+            </div>
+
+            {/* Background Color */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Background Color</label>
+              <div className="flex gap-2">
+                <input
+                  type="color"
+                  value={bgColor}
+                  onChange={(e) => setBgColor(e.target.value)}
+                  className="w-12 h-10 rounded cursor-pointer"
+                />
+                <Input
+                  value={bgColor}
+                  onChange={(e) => setBgColor(e.target.value)}
+                  placeholder="#ffffff"
+                  className="flex-1"
+                />
+              </div>
+            </div>
+
+            {/* Image URL */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Image URL (optional)</label>
+              <Input
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="https://example.com/image.jpg"
+                type="url"
+              />
+            </div>
+
+            <Button onClick={generatePreview} className="w-full">Generate Preview</Button>
+          </div>
+        </Card>
+
+        {/* Preview */}
+        {previewUrl && (
+          <div className="space-y-4">
+            <div className="border rounded-lg overflow-hidden bg-muted">
+              <img
+                src={previewUrl}
+                alt="OG Image Preview"
+                className="w-full"
+                style={{ aspectRatio: '1200/630' }}
+              />
+            </div>
+
+            {/* API URL */}
+            <Card className="p-4 bg-muted">
+              <p className="text-sm font-medium mb-2">API Endpoint:</p>
+              <code className="text-xs break-all bg-background p-3 rounded block mb-3">
+                {previewUrl}
+              </code>
+              <Button onClick={copyUrl} variant="outline" size="sm" className="w-full">
+                Copy URL
+              </Button>
+            </Card>
+
+            {/* Usage Instructions */}
             <Card className="p-6">
-              <form onSubmit={handleCapture} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    URL
-                  </label>
-                  <Input
-                    type="url"
-                    placeholder="https://example.com"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Width (px)
-                  </label>
-                  <Input
-                    type="number"
-                    placeholder="1800"
-                    value={width}
-                    onChange={(e) => setWidth(e.target.value)}
-                    disabled={loading}
-                    min="320"
-                    max="3840"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Height (px)
-                  </label>
-                  <Input
-                    type="number"
-                    placeholder="945"
-                    value={height}
-                    onChange={(e) => setHeight(e.target.value)}
-                    disabled={loading}
-                    min="240"
-                    max="2160"
-                  />
-                </div>
-
-                <Button type="submit" disabled={loading} className="w-full">
-                  {loading ? 'Capturing...' : 'Capture Screenshot'}
-                </Button>
-              </form>
-
-              {error && (
-                <div className="mt-4 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
-                  {error}
-                </div>
-              )}
-
-              {cacheStatus && (
-                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 text-blue-900 dark:text-blue-100 rounded-md text-sm">
-                  Cache Status: <strong>{cacheStatus}</strong>
-                  {cacheStatus === 'HIT' && ' - Served from cache'}
-                  {cacheStatus === 'MISS' && ' - Fresh capture'}
-                </div>
-              )}
+              <h3 className="font-semibold mb-3">Usage in Next.js Metadata</h3>
+              <pre className="bg-muted p-4 rounded text-xs overflow-x-auto">
+{`export const metadata = {
+  openGraph: {
+    title: "My Awesome Article",
+    description: "Learn how to generate dynamic OG images",
+    images: [
+      {
+        url: "${previewUrl}",
+        width: 1200,
+        height: 630,
+        type: 'image/png',
+      },
+    ],
+  },
+};`}
+              </pre>
             </Card>
 
-            {/* API Usage */}
-            <Card className="p-6 mt-6">
-              <h3 className="font-semibold mb-3">API Usage</h3>
-              <div className="text-xs bg-muted p-3 rounded-md font-mono overflow-x-auto space-y-2">
-                <div>
-                  <div className="text-muted-foreground">GET</div>
-                  <div className="text-foreground break-words">
-                    {serverUrl || '[server-url]'}/api/screenshot?url=&lt;url&gt;&width=&lt;width&gt;&height=&lt;height&gt;
-                  </div>
-                </div>
-                
-                {url && (
-                  <div className="pt-2 border-t">
-                    <div className="text-muted-foreground mb-1">Your API URL:</div>
-                    <div className="text-foreground break-words bg-background p-2 rounded border">
-                      {serverUrl}/api/screenshot?url={encodeURIComponent(url)}&width={width || '1800'}&height={height || '945'}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="mt-3 text-sm text-muted-foreground space-y-1">
-                <div><strong>url</strong> - Required. URL to screenshot</div>
-                <div><strong>width</strong> - Optional. Default: 1800</div>
-                <div><strong>height</strong> - Optional. Default: 945</div>
-              </div>
+            {/* Query Parameters */}
+            <Card className="p-6">
+              <h3 className="font-semibold mb-3">Query Parameters</h3>
+              <ul className="space-y-2 text-sm">
+                <li><strong>title</strong> - Page title (required)</li>
+                <li><strong>description</strong> - Optional subtitle</li>
+                <li><strong>bg</strong> - Background color (hex code, default: #ffffff)</li>
+                <li><strong>image</strong> - Optional image URL</li>
+              </ul>
             </Card>
           </div>
-
-          {/* Screenshot Display */}
-          <div className="lg:col-span-2">
-            <Card className="p-6 h-full flex flex-col items-center justify-center">
-              {screenshotUrl ? (
-                <div className="w-full">
-                  <img
-                    src={screenshotUrl}
-                    alt="Screenshot"
-                    className="w-full border rounded-md"
-                  />
-                </div>
-              ) : (
-                <div className="text-center text-muted-foreground">
-                  <p className="mb-2">No screenshot captured yet</p>
-                  <p className="text-sm">Enter a whitelisted URL and click Capture Screenshot</p>
-                </div>
-              )}
-            </Card>
-          </div>
-        </div>
+        )}
       </div>
     </main>
   );
