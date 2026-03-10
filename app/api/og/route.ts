@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': 'image/png',
         'Cache-Control': 'public, max-age=86400',
-        'Content-Length': buffer.byteLength,
+        'Content-Length': buffer.byteLength.toString(),
       },
     });
   } catch (error) {
