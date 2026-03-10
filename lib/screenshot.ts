@@ -20,17 +20,24 @@ export async function captureScreenshot(
     apiUrl.searchParams.set('height', String(height));
     apiUrl.searchParams.set('format', 'png');
     
-    const response = await fetch(apiUrl.toString(), {
-      method: 'GET',
-      timeout: 30000,
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
+    try {
+      const response = await fetch(apiUrl.toString(), {
+        method: 'GET',
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      throw new Error(`Screenshot API returned ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`Screenshot API returned ${response.status}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
   } catch (error) {
     console.error('[Screenshot] Error:', error instanceof Error ? error.message : String(error));
     throw new Error('Failed to capture screenshot');
