@@ -4,157 +4,197 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
 
-export default function OGImageGenerator() {
-  const [title, setTitle] = useState('My Awesome Article');
-  const [description, setDescription] = useState('Learn how to generate dynamic OG images');
-  const [bgColor, setBgColor] = useState('#ffffff');
-  const [imageUrl, setImageUrl] = useState('');
-  const [previewUrl, setPreviewUrl] = useState('');
+export default function ScreenshotOGGenerator() {
+  const [pageUrl, setPageUrl] = useState('');
+  const [width, setWidth] = useState('1800');
+  const [height, setHeight] = useState('945');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [screenshotUrl, setScreenshotUrl] = useState('');
 
-  const generatePreview = () => {
-    const params = new URLSearchParams({
-      title,
-      ...(description && { description }),
-      ...(bgColor && { bg: bgColor }),
-      ...(imageUrl && { image: imageUrl }),
-    });
-    setPreviewUrl(`/api/og?${params}`);
+  const handleCapture = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setScreenshotUrl('');
+
+    if (!pageUrl) {
+      setError('Please enter a URL');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const params = new URLSearchParams({
+        url: pageUrl,
+        ...(width && { width }),
+        ...(height && { height }),
+      });
+
+      const response = await fetch(`/api/og?${params}`);
+
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('application/json')) {
+          const data = await response.json();
+          setError(data.error || 'Failed to capture screenshot');
+        } else {
+          setError(`Failed to capture screenshot (${response.status})`);
+        }
+        return;
+      }
+
+      const blob = await response.blob();
+      setScreenshotUrl(URL.createObjectURL(blob));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const copyUrl = () => {
-    navigator.clipboard.writeText(previewUrl);
-  };
+  const apiUrl = pageUrl
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/api/og?url=${encodeURIComponent(pageUrl)}&width=${width || '1800'}&height=${height || '945'}`
+    : '';
 
   return (
-    <main className="min-h-screen bg-background p-8">
-      <div className="max-w-4xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold">OG Image Generator</h1>
-          <p className="text-muted-foreground">Generate dynamic Open Graph images for your content</p>
+    <main className="min-h-screen bg-background">
+      <div className="max-w-4xl mx-auto px-4 py-12">
+        <div className="mb-12">
+          <h1 className="text-4xl font-bold mb-2">OG Image Generator</h1>
+          <p className="text-lg text-muted-foreground">
+            Generate dynamic OG images by taking screenshots of web pages
+          </p>
         </div>
 
-        {/* Generator */}
-        <Card className="p-6 space-y-6">
-          <div className="space-y-4">
-            {/* Title */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Title</label>
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter image title..."
-                maxLength={100}
-              />
-              <p className="text-xs text-muted-foreground mt-1">{title.length}/100</p>
-            </div>
-
-            {/* Description */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Description (optional)</label>
-              <Textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Enter description..."
-                maxLength={150}
-                rows={3}
-              />
-              <p className="text-xs text-muted-foreground mt-1">{description.length}/150</p>
-            </div>
-
-            {/* Background Color */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Background Color</label>
-              <div className="flex gap-2">
-                <input
-                  type="color"
-                  value={bgColor}
-                  onChange={(e) => setBgColor(e.target.value)}
-                  className="w-12 h-10 rounded cursor-pointer"
-                />
+        <div className="grid gap-8 lg:grid-cols-2">
+          {/* Form */}
+          <Card className="p-6">
+            <form onSubmit={handleCapture} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Page URL to Screenshot
+                </label>
                 <Input
-                  value={bgColor}
-                  onChange={(e) => setBgColor(e.target.value)}
-                  placeholder="#ffffff"
-                  className="flex-1"
+                  type="url"
+                  placeholder="https://example.com"
+                  value={pageUrl}
+                  onChange={(e) => setPageUrl(e.target.value)}
+                  disabled={loading}
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Width (px)
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="1800"
+                    value={width}
+                    onChange={(e) => setWidth(e.target.value)}
+                    disabled={loading}
+                    min="320"
+                    max="3840"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Height (px)
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="945"
+                    value={height}
+                    onChange={(e) => setHeight(e.target.value)}
+                    disabled={loading}
+                    min="240"
+                    max="2160"
+                  />
+                </div>
+              </div>
+
+              <Button type="submit" disabled={loading} className="w-full">
+                {loading ? 'Capturing...' : 'Generate Screenshot'}
+              </Button>
+
+              {error && (
+                <div className="p-3 bg-red-50 text-red-800 rounded-md text-sm">
+                  {error}
+                </div>
+              )}
+            </form>
+
+            {/* API Usage */}
+            <div className="mt-8 pt-8 border-t">
+              <h3 className="font-semibold mb-3">API Endpoint</h3>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Use this URL in your meta tags:
+                </p>
+                {apiUrl && (
+                  <div className="bg-muted p-3 rounded-md font-mono text-xs overflow-x-auto break-words">
+                    {apiUrl}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Image URL */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Image URL (optional)</label>
-              <Input
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://example.com/image.jpg"
-                type="url"
-              />
+            {/* Setup Instructions */}
+            <div className="mt-8 pt-8 border-t">
+              <h3 className="font-semibold mb-3">Setup for Production</h3>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  This app uses <a href="https://screenshotone.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">screenshotone.com</a> to capture screenshots. To use in production:
+                </p>
+                <ol className="list-decimal list-inside space-y-2">
+                  <li>Get a free API key from screenshotone.com</li>
+                  <li>Set the <code className="bg-muted px-2 py-1 rounded">SCREENSHOT_API_KEY</code> environment variable in your Vercel project</li>
+                  <li>Use the API endpoint URL in your page metadata</li>
+                </ol>
+              </div>
             </div>
+          </Card>
 
-            <Button onClick={generatePreview} className="w-full">Generate Preview</Button>
-          </div>
-        </Card>
-
-        {/* Preview */}
-        {previewUrl && (
+          {/* Preview */}
           <div className="space-y-4">
-            <div className="border rounded-lg overflow-hidden bg-muted">
-              <img
-                src={previewUrl}
-                alt="OG Image Preview"
-                className="w-full"
-                style={{ aspectRatio: '1200/630' }}
-              />
-            </div>
+            {screenshotUrl ? (
+              <Card className="overflow-hidden">
+                <img
+                  src={screenshotUrl}
+                  alt="Screenshot"
+                  className="w-full"
+                />
+              </Card>
+            ) : (
+              <Card className="h-96 flex items-center justify-center bg-muted">
+                <p className="text-muted-foreground">Screenshot preview will appear here</p>
+              </Card>
+            )}
 
-            {/* API URL */}
-            <Card className="p-4 bg-muted">
-              <p className="text-sm font-medium mb-2">API Endpoint:</p>
-              <code className="text-xs break-all bg-background p-3 rounded block mb-3">
-                {previewUrl}
-              </code>
-              <Button onClick={copyUrl} variant="outline" size="sm" className="w-full">
-                Copy URL
-              </Button>
-            </Card>
+            {screenshotUrl && (
+              <Card className="p-4">
+                <h3 className="font-semibold mb-2 text-sm">HTML Meta Tag</h3>
+                <code className="text-xs bg-muted p-3 rounded-md block overflow-x-auto">
+                  {`<meta property="og:image" content="${apiUrl}" />`}
+                </code>
+              </Card>
+            )}
 
-            {/* Usage Instructions */}
-            <Card className="p-6">
-              <h3 className="font-semibold mb-3">Usage in Next.js Metadata</h3>
-              <pre className="bg-muted p-4 rounded text-xs overflow-x-auto">
-{`export const metadata = {
-  openGraph: {
-    title: "My Awesome Article",
-    description: "Learn how to generate dynamic OG images",
-    images: [
-      {
-        url: "${previewUrl}",
-        width: 1200,
-        height: 630,
-        type: 'image/png',
-      },
-    ],
-  },
-};`}
-              </pre>
-            </Card>
-
-            {/* Query Parameters */}
-            <Card className="p-6">
-              <h3 className="font-semibold mb-3">Query Parameters</h3>
-              <ul className="space-y-2 text-sm">
-                <li><strong>title</strong> - Page title (required)</li>
-                <li><strong>description</strong> - Optional subtitle</li>
-                <li><strong>bg</strong> - Background color (hex code, default: #ffffff)</li>
-                <li><strong>image</strong> - Optional image URL</li>
-              </ul>
-            </Card>
+            {screenshotUrl && (
+              <Card className="p-4">
+                <h3 className="font-semibold mb-2 text-sm">Next.js Metadata</h3>
+                <code className="text-xs bg-muted p-3 rounded-md block overflow-x-auto">
+                  {`export const metadata = {\n  openGraph: {\n    images: [\n      {\n        url: "${apiUrl}",\n        width: ${width},\n        height: ${height},\n      },\n    ],\n  },\n};`}
+                </code>
+              </Card>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </main>
   );
 }
+
