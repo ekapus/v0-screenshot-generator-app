@@ -1,35 +1,19 @@
-/**
- * Screenshot API route
- * GET /api/screenshot?url=<url>&width=<width>&height=<height>
- * 
- * Captures screenshots of web pages with domain whitelist validation and caching
- */
-
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
+import { captureScreenshot } from '@/lib/screenshot';
 import { isValidUrl, isWhitelistedDomain } from '@/lib/whitelist';
 import { generateCacheKey, getCachedScreenshot, cacheScreenshot } from '@/lib/cache';
-import { captureScreenshot } from '@/lib/screenshot';
 
 export async function GET(request: NextRequest) {
   try {
-    // Parse query parameters
     const searchParams = request.nextUrl.searchParams;
     const url = searchParams.get('url');
-    const widthParam = searchParams.get('width');
-    const heightParam = searchParams.get('height');
+    const width = parseInt(searchParams.get('width') || '1800');
+    const height = parseInt(searchParams.get('height') || '945');
 
-    // Validate URL parameter exists
-    if (!url) {
+    // Validate URL
+    if (!url || !isValidUrl(url)) {
       return NextResponse.json(
-        { error: 'Missing required parameter: url' },
-        { status: 400 }
-      );
-    }
-
-    // Validate URL format
-    if (!isValidUrl(url)) {
-      return NextResponse.json(
-        { error: 'Invalid URL format' },
+        { error: 'Valid URL is required' },
         { status: 400 }
       );
     }
@@ -37,69 +21,39 @@ export async function GET(request: NextRequest) {
     // Check whitelist
     if (!isWhitelistedDomain(url)) {
       return NextResponse.json(
-        { 
-          error: 'Domain not whitelisted. Please configure WHITELISTED_DOMAINS environment variable in your Vercel project settings with a comma-separated list of allowed domains (e.g., "example.com,github.com,*.vercel.app")' 
-        },
+        { error: 'Domain not whitelisted. Configure WHITELISTED_DOMAINS in Vercel project settings.' },
         { status: 403 }
       );
     }
 
-    // Parse and validate dimensions
-    const width = widthParam ? parseInt(widthParam, 10) : undefined;
-    const height = heightParam ? parseInt(heightParam, 10) : undefined;
-
-    if ((widthParam && isNaN(width!)) || (heightParam && isNaN(height!))) {
-      return NextResponse.json(
-        { error: 'Invalid width or height parameter' },
-        { status: 400 }
-      );
-    }
-
-    // Generate cache key
-    const cacheKey = generateCacheKey(url, width || 1800, height || 945);
-
-    // Check cache first
-    let screenshotBuffer: Buffer | null = null;
-    try {
-      screenshotBuffer = await getCachedScreenshot(cacheKey);
-      if (screenshotBuffer) {
-        console.log('[Screenshot] Cache hit for:', url);
-        return new NextResponse(screenshotBuffer, {
-          status: 200,
-          headers: {
-            'Content-Type': 'image/png',
-            'Cache-Control': 'public, max-age=86400', // 24 hours
-            'X-Cache': 'HIT',
-          },
-        });
-      }
-    } catch (error) {
-      console.error('[Screenshot] Cache check failed:', error);
-      // Continue to capture if cache fails
+    // Check cache
+    const cacheKey = generateCacheKey(url, width, height);
+    const cached = await getCachedScreenshot(cacheKey);
+    if (cached) {
+      return new NextResponse(cached, {
+        headers: {
+          'Content-Type': 'image/png',
+          'X-Cache': 'HIT',
+          'Cache-Control': 'public, max-age=86400',
+        },
+      });
     }
 
     // Capture screenshot
-    console.log('[Screenshot] Capturing new screenshot for:', url);
-    screenshotBuffer = await captureScreenshot(url, { width, height });
+    const screenshot = await captureScreenshot(url, width, height);
 
-    // Cache the screenshot
-    try {
-      await cacheScreenshot(cacheKey, screenshotBuffer);
-    } catch (error) {
-      console.error('[Screenshot] Failed to cache, but returning screenshot:', error);
-      // Don't fail the request if caching fails
-    }
+    // Store in cache
+    await cacheScreenshot(cacheKey, screenshot);
 
-    return new NextResponse(screenshotBuffer, {
-      status: 200,
+    return new NextResponse(screenshot, {
       headers: {
         'Content-Type': 'image/png',
-        'Cache-Control': 'public, max-age=86400', // 24 hours
         'X-Cache': 'MISS',
+        'Cache-Control': 'public, max-age=86400',
       },
     });
   } catch (error) {
-    console.error('[Screenshot] Unexpected error:', error);
+    console.error('[Screenshot API] Error:', error);
     return NextResponse.json(
       { error: 'Failed to capture screenshot' },
       { status: 500 }
