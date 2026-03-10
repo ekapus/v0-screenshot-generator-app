@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
     const screenshotApiUrl = `https://api.screenshotone.com/take?access_key=${apiKey}&url=${encodeURIComponent(pageUrl)}&viewport_width=${width}&viewport_height=${height}&format=png`;
 
     console.log('[OG] Requesting screenshot from:', screenshotApiUrl.split('?')[0]);
+    console.log('[OG] Using access_key:', apiKey === 'demo' ? 'demo (no key set)' : 'custom key');
 
     const response = await fetch(screenshotApiUrl, {
       method: 'GET',
@@ -41,9 +42,11 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response.ok) {
+      const responseText = await response.text();
       console.error('[OG] Screenshot API error:', response.status, response.statusText);
+      console.error('[OG] Response body:', responseText.substring(0, 500));
       return NextResponse.json(
-        { error: `Screenshot service returned ${response.status}` },
+        { error: `Screenshot service returned ${response.status}: ${response.statusText}` },
         { status: 500 }
       );
     }
