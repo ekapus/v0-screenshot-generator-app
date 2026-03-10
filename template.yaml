@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Screenshot generation Lambda function with API Gateway
+
+Parameters:
+  FunctionTimeout:
+    Type: Number
+    Default: 60
+    Description: Lambda function timeout in seconds
+  FunctionMemory:
+    Type: Number
+    Default: 3008
+    Description: Lambda function memory in MB
+
+Globals:
+  Function:
+    Timeout: !Ref FunctionTimeout
+    MemorySize: !Ref FunctionMemory
+    Runtime: nodejs20.x
+    Architectures:
+      - x86_64
+
+Resources:
+  ScreenshotFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: screenshot-generator
+      CodeUri: lambda/
+      Handler: screenshot.handler
+      Description: Generate screenshots of web pages
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:chromium:1
+      Environment:
+        Variables:
+          NODE_OPTIONS: '--max-old-space-size=2816'
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ScreenshotApi
+            Path: /screenshot
+            Method: GET
+
+  ScreenshotApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: screenshot-api
+      Description: API for screenshot generation
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  ScreenshotResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ScreenshotApi
+      ParentId: !GetAtt ScreenshotApi.RootResourceId
+      PathPart: screenshot
+
+  ScreenshotMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ScreenshotApi
+      ResourceId: !Ref ScreenshotResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ScreenshotFunction.Arn}/invocations
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ScreenshotMethod
+    Properties:
+      RestApiId: !Ref ScreenshotApi
+      StageName: prod
+
+  LambdaApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ScreenshotFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ScreenshotApi}/*/*
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint for screenshot generation
+    Value: !Sub https://${ScreenshotApi}.execute-api.${AWS::Region}.amazonaws.com/prod/screenshot
+  
+  FunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt ScreenshotFunction.Arn
+  
+  FunctionName:
+    Description: Lambda function name
+    Value: !Ref ScreenshotFunction

@@ -5,25 +5,34 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 
-export default function ScreenshotOGGenerator() {
+export default function ScreenshotTester() {
+  const [lambdaUrl, setLambdaUrl] = useState('');
   const [pageUrl, setPageUrl] = useState('');
   const [width, setWidth] = useState('1800');
   const [height, setHeight] = useState('945');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [screenshotUrl, setScreenshotUrl] = useState('');
+  const [responseTime, setResponseTime] = useState<number | null>(null);
 
   const handleCapture = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setScreenshotUrl('');
+    setResponseTime(null);
+
+    if (!lambdaUrl) {
+      setError('Please enter Lambda API endpoint URL');
+      return;
+    }
 
     if (!pageUrl) {
-      setError('Please enter a URL');
+      setError('Please enter a page URL to screenshot');
       return;
     }
 
     setLoading(true);
+    const startTime = Date.now();
 
     try {
       const params = new URLSearchParams({
@@ -32,13 +41,15 @@ export default function ScreenshotOGGenerator() {
         ...(height && { height }),
       });
 
-      const response = await fetch(`/api/og?${params}`);
+      const response = await fetch(`${lambdaUrl}?${params}`);
+      const endTime = Date.now();
+      setResponseTime(endTime - startTime);
 
       if (!response.ok) {
         const contentType = response.headers.get('content-type');
         if (contentType?.includes('application/json')) {
           const data = await response.json();
-          setError(data.error || 'Failed to capture screenshot');
+          setError(data.error || `Failed to capture screenshot (${response.status})`);
         } else {
           setError(`Failed to capture screenshot (${response.status})`);
         }
@@ -54,17 +65,17 @@ export default function ScreenshotOGGenerator() {
     }
   };
 
-  const apiUrl = pageUrl
-    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/api/og?url=${encodeURIComponent(pageUrl)}&width=${width || '1800'}&height=${height || '945'}`
+  const apiUrl = lambdaUrl && pageUrl
+    ? `${lambdaUrl}?url=${encodeURIComponent(pageUrl)}&width=${width || '1800'}&height=${height || '945'}`
     : '';
 
   return (
     <main className="min-h-screen bg-background">
       <div className="max-w-4xl mx-auto px-4 py-12">
         <div className="mb-12">
-          <h1 className="text-4xl font-bold mb-2">OG Image Generator</h1>
+          <h1 className="text-4xl font-bold mb-2">AWS Lambda Screenshot Tester</h1>
           <p className="text-lg text-muted-foreground">
-            Generate dynamic OG images by taking screenshots of web pages
+            Test your Lambda function endpoint by capturing screenshots
           </p>
         </div>
 
@@ -72,6 +83,22 @@ export default function ScreenshotOGGenerator() {
           {/* Form */}
           <Card className="p-6">
             <form onSubmit={handleCapture} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Lambda API Endpoint URL
+                </label>
+                <Input
+                  type="url"
+                  placeholder="https://xxxxx.execute-api.region.amazonaws.com/prod/screenshot"
+                  value={lambdaUrl}
+                  onChange={(e) => setLambdaUrl(e.target.value)}
+                  disabled={loading}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Get this from your CloudFormation stack outputs
+                </p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium mb-2">
                   Page URL to Screenshot
@@ -117,7 +144,7 @@ export default function ScreenshotOGGenerator() {
               </div>
 
               <Button type="submit" disabled={loading} className="w-full">
-                {loading ? 'Capturing...' : 'Generate Screenshot'}
+                {loading ? 'Capturing...' : 'Capture Screenshot'}
               </Button>
 
               {error && (
@@ -125,34 +152,24 @@ export default function ScreenshotOGGenerator() {
                   {error}
                 </div>
               )}
+
+              {responseTime !== null && (
+                <div className="p-3 bg-green-50 text-green-800 rounded-md text-sm">
+                  Success! Response time: {responseTime}ms
+                </div>
+              )}
             </form>
 
-            {/* API Usage */}
-            <div className="mt-8 pt-8 border-t">
-              <h3 className="font-semibold mb-3">API Endpoint</h3>
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Use this URL in your meta tags:
-                </p>
-                {apiUrl && (
-                  <div className="bg-muted p-3 rounded-md font-mono text-xs overflow-x-auto break-words">
-                    {apiUrl}
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Setup Instructions */}
-            <div className="mt-8 pt-8 border-t">
-              <h3 className="font-semibold mb-3">Setup for Production</h3>
+            <div className="mt-8 pt-8 border-t space-y-4">
+              <h3 className="font-semibold">How to Deploy</h3>
               <div className="space-y-3 text-sm text-muted-foreground">
-                <p>
-                  This app uses <a href="https://screenshotone.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">screenshotone.com</a> to capture screenshots. To use in production:
-                </p>
-                <ol className="list-decimal list-inside space-y-2">
-                  <li>Get a free API key from screenshotone.com</li>
-                  <li>Set the <code className="bg-muted px-2 py-1 rounded">SCREENSHOT_API_KEY</code> environment variable in your Vercel project</li>
-                  <li>Use the API endpoint URL in your page metadata</li>
+                <p>To deploy the Lambda function:</p>
+                <ol className="list-decimal list-inside space-y-2 ml-2">
+                  <li>Install AWS SAM CLI: <code className="bg-muted px-1 rounded">pip install aws-sam-cli</code></li>
+                  <li>Build: <code className="bg-muted px-1 rounded">sam build</code></li>
+                  <li>Deploy: <code className="bg-muted px-1 rounded">sam deploy --guided</code></li>
+                  <li>Copy the API endpoint from CloudFormation outputs into the form above</li>
                 </ol>
               </div>
             </div>
@@ -174,20 +191,20 @@ export default function ScreenshotOGGenerator() {
               </Card>
             )}
 
-            {screenshotUrl && (
+            {apiUrl && (
               <Card className="p-4">
-                <h3 className="font-semibold mb-2 text-sm">HTML Meta Tag</h3>
-                <code className="text-xs bg-muted p-3 rounded-md block overflow-x-auto">
-                  {`<meta property="og:image" content="${apiUrl}" />`}
+                <h3 className="font-semibold mb-2 text-sm">API URL</h3>
+                <code className="text-xs bg-muted p-3 rounded-md block overflow-x-auto break-words">
+                  {apiUrl}
                 </code>
               </Card>
             )}
 
             {screenshotUrl && (
               <Card className="p-4">
-                <h3 className="font-semibold mb-2 text-sm">Next.js Metadata</h3>
+                <h3 className="font-semibold mb-2 text-sm">Usage in Next.js</h3>
                 <code className="text-xs bg-muted p-3 rounded-md block overflow-x-auto">
-                  {`export const metadata = {\n  openGraph: {\n    images: [\n      {\n        url: "${apiUrl}",\n        width: ${width},\n        height: ${height},\n      },\n    ],\n  },\n};`}
+                  {`export const metadata = {\n  openGraph: {\n    images: [{\n      url: "${apiUrl}",\n      width: ${width},\n      height: ${height},\n    }],\n  },\n};`}
                 </code>
               </Card>
             )}
@@ -197,4 +214,5 @@ export default function ScreenshotOGGenerator() {
     </main>
   );
 }
+
 

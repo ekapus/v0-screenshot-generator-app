@@ -1,0 +1,10 @@
+{
+  "name": "screenshot-lambda",
+  "version": "1.0.0",
+  "description": "AWS Lambda function for taking screenshots",
+  "main": "screenshot.js",
+  "dependencies": {
+    "playwright-core": "^1.40.0",
+    "@sparticuz/chromium": "^124.0.0"
+  }
+}
