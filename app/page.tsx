@@ -5,22 +5,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 
-export default function ScreenshotDashboard() {
-  const [url, setUrl] = useState('');
-  const [width, setWidth] = useState('1280');
-  const [height, setHeight] = useState('720');
+export default function ScreenshotOGGenerator() {
+  const [pageUrl, setPageUrl] = useState('');
+  const [width, setWidth] = useState('1800');
+  const [height, setHeight] = useState('945');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [screenshotUrl, setScreenshotUrl] = useState('');
-  const [cacheStatus, setCacheStatus] = useState('');
 
   const handleCapture = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setCacheStatus('');
     setScreenshotUrl('');
 
-    if (!url) {
+    if (!pageUrl) {
       setError('Please enter a URL');
       return;
     }
@@ -29,27 +27,26 @@ export default function ScreenshotDashboard() {
 
     try {
       const params = new URLSearchParams({
-        url,
+        url: pageUrl,
         ...(width && { width }),
         ...(height && { height }),
       });
 
-      const response = await fetch(`/api/screenshot?${params}`, {
-        method: 'GET',
-      });
+      const response = await fetch(`/api/og?${params}`);
 
       if (!response.ok) {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to capture screenshot');
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('application/json')) {
+          const data = await response.json();
+          setError(data.error || 'Failed to capture screenshot');
+        } else {
+          setError(`Failed to capture screenshot (${response.status})`);
+        }
         return;
       }
 
-      const cacheHeader = response.headers.get('X-Cache');
-      setCacheStatus(cacheHeader || 'UNKNOWN');
-
       const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      setScreenshotUrl(objectUrl);
+      setScreenshotUrl(URL.createObjectURL(blob));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -57,41 +54,45 @@ export default function ScreenshotDashboard() {
     }
   };
 
+  const apiUrl = pageUrl
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/api/og?url=${encodeURIComponent(pageUrl)}&width=${width || '1800'}&height=${height || '945'}`
+    : '';
+
   return (
-    <main className="min-h-screen bg-background p-6">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold tracking-tight mb-2">Screenshot API</h1>
+    <main className="min-h-screen bg-background">
+      <div className="max-w-4xl mx-auto px-4 py-12">
+        <div className="mb-12">
+          <h1 className="text-4xl font-bold mb-2">OG Image Generator</h1>
           <p className="text-lg text-muted-foreground">
-            Capture screenshots of whitelisted domains with configurable dimensions
+            Generate dynamic OG images by taking screenshots of web pages
           </p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-8 lg:grid-cols-2">
           {/* Form */}
-          <div className="lg:col-span-1">
-            <Card className="p-6">
-              <form onSubmit={handleCapture} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    URL
-                  </label>
-                  <Input
-                    type="url"
-                    placeholder="https://example.com"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
+          <Card className="p-6">
+            <form onSubmit={handleCapture} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Page URL to Screenshot
+                </label>
+                <Input
+                  type="url"
+                  placeholder="https://example.com"
+                  value={pageUrl}
+                  onChange={(e) => setPageUrl(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
 
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">
                     Width (px)
                   </label>
                   <Input
                     type="number"
-                    placeholder="1280"
+                    placeholder="1800"
                     value={width}
                     onChange={(e) => setWidth(e.target.value)}
                     disabled={loading}
@@ -99,14 +100,13 @@ export default function ScreenshotDashboard() {
                     max="3840"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium mb-2">
                     Height (px)
                   </label>
                   <Input
                     type="number"
-                    placeholder="720"
+                    placeholder="945"
                     value={height}
                     onChange={(e) => setHeight(e.target.value)}
                     disabled={loading}
@@ -114,76 +114,87 @@ export default function ScreenshotDashboard() {
                     max="2160"
                   />
                 </div>
+              </div>
 
-                <Button type="submit" disabled={loading} className="w-full">
-                  {loading ? 'Capturing...' : 'Capture Screenshot'}
-                </Button>
-              </form>
+              <Button type="submit" disabled={loading} className="w-full">
+                {loading ? 'Capturing...' : 'Generate Screenshot'}
+              </Button>
 
               {error && (
-                <div className="mt-4 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+                <div className="p-3 bg-red-50 text-red-800 rounded-md text-sm">
                   {error}
                 </div>
               )}
-
-              {cacheStatus && (
-                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 text-blue-900 dark:text-blue-100 rounded-md text-sm">
-                  Cache Status: <strong>{cacheStatus}</strong>
-                  {cacheStatus === 'HIT' && ' - Served from cache'}
-                  {cacheStatus === 'MISS' && ' - Fresh capture'}
-                </div>
-              )}
-            </Card>
+            </form>
 
             {/* API Usage */}
-            <Card className="p-6 mt-6">
-              <h3 className="font-semibold mb-3">API Usage</h3>
-              <div className="text-xs bg-muted p-3 rounded-md font-mono overflow-x-auto space-y-2">
-                <div>
-                  <div className="text-muted-foreground">GET</div>
-                  <div className="text-foreground break-words">
-                    /api/screenshot?url=&lt;url&gt;&width=&lt;width&gt;&height=&lt;height&gt;
-                  </div>
-                </div>
-                
-                {url && (
-                  <div className="pt-2 border-t">
-                    <div className="text-muted-foreground mb-1">Your API URL:</div>
-                    <div className="text-foreground break-words bg-background p-2 rounded border">
-                      /api/screenshot?url={encodeURIComponent(url)}&width={width || '1280'}&height={height || '720'}
-                    </div>
+            <div className="mt-8 pt-8 border-t">
+              <h3 className="font-semibold mb-3">API Endpoint</h3>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Use this URL in your meta tags:
+                </p>
+                {apiUrl && (
+                  <div className="bg-muted p-3 rounded-md font-mono text-xs overflow-x-auto break-words">
+                    {apiUrl}
                   </div>
                 )}
               </div>
-              <div className="mt-3 text-sm text-muted-foreground space-y-1">
-                <div><strong>url</strong> - Required. URL to screenshot</div>
-                <div><strong>width</strong> - Optional. Default: 1280</div>
-                <div><strong>height</strong> - Optional. Default: 720</div>
-              </div>
-            </Card>
-          </div>
+            </div>
 
-          {/* Screenshot Display */}
-          <div className="lg:col-span-2">
-            <Card className="p-6 h-full flex flex-col items-center justify-center">
-              {screenshotUrl ? (
-                <div className="w-full">
-                  <img
-                    src={screenshotUrl}
-                    alt="Screenshot"
-                    className="w-full border rounded-md"
-                  />
-                </div>
-              ) : (
-                <div className="text-center text-muted-foreground">
-                  <p className="mb-2">No screenshot captured yet</p>
-                  <p className="text-sm">Enter a whitelisted URL and click Capture Screenshot</p>
-                </div>
-              )}
-            </Card>
+            {/* Setup Instructions */}
+            <div className="mt-8 pt-8 border-t">
+              <h3 className="font-semibold mb-3">Setup for Production</h3>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  This app uses <a href="https://screenshotone.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">screenshotone.com</a> to capture screenshots. To use in production:
+                </p>
+                <ol className="list-decimal list-inside space-y-2">
+                  <li>Get a free API key from screenshotone.com</li>
+                  <li>Set the <code className="bg-muted px-2 py-1 rounded">SCREENSHOT_API_KEY</code> environment variable in your Vercel project</li>
+                  <li>Use the API endpoint URL in your page metadata</li>
+                </ol>
+              </div>
+            </div>
+          </Card>
+
+          {/* Preview */}
+          <div className="space-y-4">
+            {screenshotUrl ? (
+              <Card className="overflow-hidden">
+                <img
+                  src={screenshotUrl}
+                  alt="Screenshot"
+                  className="w-full"
+                />
+              </Card>
+            ) : (
+              <Card className="h-96 flex items-center justify-center bg-muted">
+                <p className="text-muted-foreground">Screenshot preview will appear here</p>
+              </Card>
+            )}
+
+            {screenshotUrl && (
+              <Card className="p-4">
+                <h3 className="font-semibold mb-2 text-sm">HTML Meta Tag</h3>
+                <code className="text-xs bg-muted p-3 rounded-md block overflow-x-auto">
+                  {`<meta property="og:image" content="${apiUrl}" />`}
+                </code>
+              </Card>
+            )}
+
+            {screenshotUrl && (
+              <Card className="p-4">
+                <h3 className="font-semibold mb-2 text-sm">Next.js Metadata</h3>
+                <code className="text-xs bg-muted p-3 rounded-md block overflow-x-auto">
+                  {`export const metadata = {\n  openGraph: {\n    images: [\n      {\n        url: "${apiUrl}",\n        width: ${width},\n        height: ${height},\n      },\n    ],\n  },\n};`}
+                </code>
+              </Card>
+            )}
           </div>
         </div>
       </div>
     </main>
   );
 }
+
