@@ -1,34 +1,36 @@
-import { NextResponse, NextRequest } from 'next/server';
-import { captureScreenshot } from '@/lib/screenshot';
+import { NextRequest, NextResponse } from 'next/server';
 import { isValidUrl, isWhitelistedDomain } from '@/lib/whitelist';
 import { generateCacheKey, getCachedScreenshot, cacheScreenshot } from '@/lib/cache';
+import { captureScreenshot } from '@/lib/screenshot';
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const url = searchParams.get('url');
-    const width = parseInt(searchParams.get('width') || '1800');
-    const height = parseInt(searchParams.get('height') || '945');
+    const widthParam = searchParams.get('width');
+    const heightParam = searchParams.get('height');
 
     // Validate URL
-    if (!url || !isValidUrl(url)) {
-      return NextResponse.json(
-        { error: 'Valid URL is required' },
-        { status: 400 }
-      );
+    if (!url) {
+      return NextResponse.json({ error: 'URL parameter required' }, { status: 400 });
     }
 
-    // Check whitelist
-    if (!isWhitelistedDomain(url)) {
-      return NextResponse.json(
-        { error: 'Domain not whitelisted. Configure WHITELISTED_DOMAINS in Vercel project settings.' },
-        { status: 403 }
-      );
+    if (!isValidUrl(url)) {
+      return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
     }
+
+    if (!isWhitelistedDomain(url)) {
+      return NextResponse.json({ error: 'Domain not whitelisted' }, { status: 403 });
+    }
+
+    // Parse dimensions
+    const width = Math.min(Math.max(parseInt(widthParam || '1800'), 320), 3840);
+    const height = Math.min(Math.max(parseInt(heightParam || '945'), 240), 2160);
 
     // Check cache
     const cacheKey = generateCacheKey(url, width, height);
     const cached = await getCachedScreenshot(cacheKey);
+
     if (cached) {
       return new NextResponse(cached, {
         headers: {
@@ -42,7 +44,7 @@ export async function GET(request: NextRequest) {
     // Capture screenshot
     const screenshot = await captureScreenshot(url, width, height);
 
-    // Store in cache
+    // Cache it
     await cacheScreenshot(cacheKey, screenshot);
 
     return new NextResponse(screenshot, {
@@ -53,9 +55,9 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('[Screenshot API] Error:', error);
+    console.error('[Screenshot] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to capture screenshot' },
+      { error: error instanceof Error ? error.message : 'Failed to capture screenshot' },
       { status: 500 }
     );
   }

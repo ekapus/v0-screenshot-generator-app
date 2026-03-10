@@ -11,7 +11,6 @@ export function isValidUrl(urlString: string): boolean {
 
 export function isWhitelistedDomain(urlString: string): boolean {
   if (WHITELISTED_DOMAINS.length === 0) {
-    console.error('[Screenshot] WHITELISTED_DOMAINS not configured. Set it in your Vercel project settings.');
     return false;
   }
 

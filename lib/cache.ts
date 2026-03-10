@@ -1,30 +1,22 @@
 import crypto from 'crypto';
 
-interface CacheEntry {
-  buffer: Buffer;
-  timestamp: number;
-}
-
-const cache = new Map<string, CacheEntry>();
+const cache = new Map<string, { data: Buffer; timestamp: number }>();
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 export function generateCacheKey(url: string, width: number, height: number): string {
-  const hash = crypto.createHash('sha256').update(`${url}:${width}:${height}`).digest('hex');
-  return hash;
+  return crypto.createHash('md5').update(`${url}:${width}:${height}`).digest('hex');
 }
 
 export async function getCachedScreenshot(key: string): Promise<Buffer | null> {
   const entry = cache.get(key);
-  if (entry && Date.now() - entry.timestamp < CACHE_TTL) {
-    return entry.buffer;
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_TTL) {
+    cache.delete(key);
+    return null;
   }
-  cache.delete(key);
-  return null;
+  return entry.data;
 }
 
-export async function cacheScreenshot(key: string, buffer: Buffer): Promise<void> {
-  cache.set(key, {
-    buffer,
-    timestamp: Date.now(),
-  });
+export async function cacheScreenshot(key: string, data: Buffer): Promise<void> {
+  cache.set(key, { data, timestamp: Date.now() });
 }
