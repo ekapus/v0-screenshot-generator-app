@@ -48,7 +48,7 @@ async function getBrowser() {
   return browser;
 }
 
-exports.handler = async (event) => {
+exports.handler = async (event, context) => {
   try {
     const { url, width = 1800, height = 945 } = event.queryStringParameters || {};
 
@@ -72,16 +72,16 @@ exports.handler = async (event) => {
       };
     }
 
-    // Security: Only allow screenshots of same hostname
-    const allowedHostname = process.env.ALLOWED_HOSTNAME || require('os').hostname();
-    const requestedHostname = parsedUrl.hostname;
+    // Security: Only allow screenshots of same hostname as the request
+    const requestHostname = event.requestHostname;
+    const screenshotHostname = parsedUrl.hostname;
 
-    if (requestedHostname !== allowedHostname) {
-      console.warn(`[Lambda] Rejected screenshot request for different hostname: ${requestedHostname} (allowed: ${allowedHostname})`);
+    if (screenshotHostname !== requestHostname) {
+      console.warn(`[Lambda] Rejected screenshot request for different hostname: ${screenshotHostname} (request from: ${requestHostname})`);
       return {
         statusCode: 403,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Screenshots only allowed for same hostname' }),
+        body: JSON.stringify({ error: 'Screenshots only allowed for the same hostname' }),
       };
     }
 
@@ -92,11 +92,11 @@ exports.handler = async (event) => {
     console.log(`[Lambda] Capturing screenshot: ${url} at ${w}x${h}`);
 
     const browser = await getBrowser();
-    const context = await browser.newContext({
+    const context_obj = await browser.newContext({
       viewport: { width: w, height: h },
     });
 
-    const page = await context.newPage();
+    const page = await context_obj.newPage();
     page.setDefaultTimeout(30000);
     page.setDefaultNavigationTimeout(30000);
 
@@ -115,7 +115,7 @@ exports.handler = async (event) => {
       fullPage: false,
     });
 
-    await context.close();
+    await context_obj.close();
 
     console.log(`[Lambda] Screenshot captured: ${screenshot.length} bytes`);
 
