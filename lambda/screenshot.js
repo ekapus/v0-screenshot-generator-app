@@ -1,7 +1,6 @@
 const { chromium } = require('playwright-core');
-const chromium_binary = require('@sparticuz/chromium');
 
-// Cache browser instance across Lambda invocations
+// Cache browser instance across invocations
 let browser = null;
 
 async function getBrowser() {
@@ -9,10 +8,40 @@ async function getBrowser() {
     return browser;
   }
 
-  const executablePath = await chromium_binary.executablePath;
+  // Use system Chromium on Lightsail/Linux
+  // Fallback to standard paths if running locally
+  const chromiumPaths = [
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/snap/bin/chromium',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  ];
+
+  let executablePath = null;
+  for (const path of chromiumPaths) {
+    try {
+      require('fs').accessSync(path);
+      executablePath = path;
+      break;
+    } catch (e) {
+      // Continue to next path
+    }
+  }
+
+  if (!executablePath) {
+    throw new Error('Chromium browser not found. Please install chromium or chromium-browser.');
+  }
+
+  console.log(`[Screenshot] Using Chromium at: ${executablePath}`);
+
   browser = await chromium.launch({
     executablePath,
-    args: chromium_binary.args,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+    ],
     headless: true,
   });
 
