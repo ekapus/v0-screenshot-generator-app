@@ -61,13 +61,27 @@ exports.handler = async (event) => {
       };
     }
 
+    let parsedUrl;
     try {
-      new URL(url);
+      parsedUrl = new URL(url);
     } catch {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: 'Invalid URL provided' }),
+      };
+    }
+
+    // Security: Only allow screenshots of same hostname
+    const allowedHostname = process.env.ALLOWED_HOSTNAME || require('os').hostname();
+    const requestedHostname = parsedUrl.hostname;
+
+    if (requestedHostname !== allowedHostname) {
+      console.warn(`[Lambda] Rejected screenshot request for different hostname: ${requestedHostname} (allowed: ${allowedHostname})`);
+      return {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Screenshots only allowed for same hostname' }),
       };
     }
 
