@@ -1,58 +1,100 @@
-const { chromium } = require('playwright-core');
+const chromium = require('@sparticuz/chromium');
+const { chromium: playwrightChromium } = require('playwright-core');
 
-// Cache browser instance across invocations
-let browser = null;
+/**
+ * AWS Lambda handler for screenshot generation
+ * 
+ * Environment Variables:
+ * - ALLOWED_HOSTS: Comma-separated list of allowed hostnames (e.g., "example.com,another.com")
+ * - SCREENSHOT_TIMEOUT: Navigation timeout in ms (default: 30000)
+ * - MAX_SCREENSHOT_WIDTH: Maximum screenshot width (default: 3840)
+ * - MAX_SCREENSHOT_HEIGHT: Maximum screenshot height (default: 2160)
+ */
 
-async function getBrowser() {
-  if (browser) {
+const ALLOWED_HOSTS = (process.env.ALLOWED_HOSTS || '*').split(',').map(h => h.trim());
+const SCREENSHOT_TIMEOUT = parseInt(process.env.SCREENSHOT_TIMEOUT || '30000', 10);
+const MAX_WIDTH = parseInt(process.env.MAX_SCREENSHOT_WIDTH || '3840', 10);
+const MAX_HEIGHT = parseInt(process.env.MAX_SCREENSHOT_HEIGHT || '2160', 10);
+const MIN_WIDTH = 320;
+const MIN_HEIGHT = 240;
+
+/**
+ * Launch a new browser instance for this invocation
+ * Each Lambda invocation gets its own browser instance
+ */
+async function launchBrowser() {
+  try {
+    const executablePath = await chromium.executablePath();
+    
+    console.log(`[Screenshot] Launching Chromium from: ${executablePath}`);
+
+    const browser = await playwrightChromium.launch({
+      args: chromium.args,
+      executablePath,
+      headless: true,
+    });
+
     return browser;
+  } catch (error) {
+    console.error('[Screenshot] Failed to launch browser:', error);
+    throw new Error(`Failed to launch Chromium: ${error.message}`);
   }
-
-  // Use system Chromium on Lightsail/Linux
-  // Fallback to standard paths if running locally
-  const chromiumPaths = [
-    '/usr/bin/chromium-browser',
-    '/usr/bin/chromium',
-    '/snap/bin/chromium',
-    '/Applications/Chromium.app/Contents/MacOS/Chromium',
-  ];
-
-  let executablePath = null;
-  for (const path of chromiumPaths) {
-    try {
-      require('fs').accessSync(path);
-      executablePath = path;
-      break;
-    } catch (e) {
-      // Continue to next path
-    }
-  }
-
-  if (!executablePath) {
-    throw new Error('Chromium browser not found. Please install chromium or chromium-browser.');
-  }
-
-  console.log(`[Screenshot] Using Chromium at: ${executablePath}`);
-
-  browser = await chromium.launch({
-    executablePath,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-    ],
-    headless: true,
-  });
-
-  return browser;
 }
 
-exports.handler = async (event, context) => {
-  try {
-    const { url, width = 1800, height = 945 } = event.queryStringParameters || {};
+/**
+ * Validate hostname against allowed hosts
+ */
+function isHostnameAllowed(hostname) {
+  if (ALLOWED_HOSTS.includes('*')) {
+    return true; // Allow all if wildcard
+  }
+  return ALLOWED_HOSTS.includes(hostname);
+}
 
-    // Validate URL
+/**
+ * Validate and normalize URL
+ */
+function validateUrl(urlString) {
+  try {
+    const url = new URL(urlString);
+    
+    // Only allow http and https
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      return { valid: false, error: 'Only HTTP and HTTPS URLs are supported' };
+    }
+
+    return { valid: true, url };
+  } catch {
+    return { valid: false, error: 'Invalid URL provided' };
+  }
+}
+
+/**
+ * Validate and normalize dimensions
+ */
+function validateDimensions(width, height) {
+  const w = Math.min(Math.max(parseInt(width) || 1800, MIN_WIDTH), MAX_WIDTH);
+  const h = Math.min(Math.max(parseInt(height) || 945, MIN_HEIGHT), MAX_HEIGHT);
+  return { width: w, height: h };
+}
+
+/**
+ * Lambda handler for screenshot requests
+ */
+exports.handler = async (event, context) => {
+  // Disable context object cleanup to allow Lambda to reuse the connection
+  context.callbackWaitsForEmptyEventLoop = false;
+
+  let browser = null;
+  let page = null;
+  let context_obj = null;
+
+  try {
+    // Parse query parameters from API Gateway event
+    const queryParams = event.queryStringParameters || {};
+    const { url, width = '1800', height = '945' } = queryParams;
+
+    // Validate URL parameter exists
     if (!url) {
       return {
         statusCode: 400,
@@ -61,80 +103,99 @@ exports.handler = async (event, context) => {
       };
     }
 
-    let parsedUrl;
-    try {
-      parsedUrl = new URL(url);
-    } catch {
+    // Validate URL format
+    const urlValidation = validateUrl(url);
+    if (!urlValidation.valid) {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Invalid URL provided' }),
+        body: JSON.stringify({ error: urlValidation.error }),
       };
     }
 
-    // Security: Only allow screenshots of same hostname as the request
-    const requestHostname = event.requestHostname;
-    const screenshotHostname = parsedUrl.hostname;
-
-    if (screenshotHostname !== requestHostname) {
-      console.warn(`[Lambda] Rejected screenshot request for different hostname: ${screenshotHostname} (request from: ${requestHostname})`);
+    // Validate hostname is allowed
+    const { hostname } = urlValidation.url;
+    if (!isHostnameAllowed(hostname)) {
+      console.warn(`[Screenshot] Rejected screenshot request for hostname: ${hostname}`);
       return {
         statusCode: 403,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Screenshots only allowed for the same hostname' }),
+        body: JSON.stringify({ error: `Hostname not allowed: ${hostname}` }),
       };
     }
 
-    // Validate dimensions
-    const w = Math.min(Math.max(parseInt(width) || 1800, 320), 3840);
-    const h = Math.min(Math.max(parseInt(height) || 945, 240), 2160);
+    // Validate and normalize dimensions
+    const { width: w, height: h } = validateDimensions(width, height);
 
-    console.log(`[Lambda] Capturing screenshot: ${url} at ${w}x${h}`);
+    console.log(`[Screenshot] Starting screenshot capture: url=${url}, dimensions=${w}x${h}`);
 
-    const browser = await getBrowser();
-    const context_obj = await browser.newContext({
+    // Launch browser for this invocation
+    browser = await launchBrowser();
+
+    // Create browser context with specified viewport
+    context_obj = await browser.newContext({
       viewport: { width: w, height: h },
     });
 
-    const page = await context_obj.newPage();
-    page.setDefaultTimeout(30000);
-    page.setDefaultNavigationTimeout(30000);
+    // Create page in context
+    page = await context_obj.newPage();
+    page.setDefaultTimeout(SCREENSHOT_TIMEOUT);
+    page.setDefaultNavigationTimeout(SCREENSHOT_TIMEOUT);
 
+    // Navigate to URL with error handling
     try {
       await page.goto(url, { waitUntil: 'networkidle' });
-    } catch (error) {
-      console.error('[Lambda] Navigation timeout or error:', error.message);
+    } catch (navigationError) {
+      console.warn(`[Screenshot] Navigation timeout/error (continuing with partial content): ${navigationError.message}`);
       // Continue anyway - we may have partial page content
     }
 
-    // Wait for animations
+    // Wait for animations to complete
     await page.waitForTimeout(1000);
 
+    // Capture screenshot
     const screenshot = await page.screenshot({
       type: 'png',
       fullPage: false,
     });
 
-    await context_obj.close();
-
-    console.log(`[Lambda] Screenshot captured: ${screenshot.length} bytes`);
+    console.log(`[Screenshot] Screenshot captured successfully: ${screenshot.length} bytes`);
 
     return {
       statusCode: 200,
       headers: {
         'Content-Type': 'image/png',
         'Cache-Control': 'public, max-age=3600',
-        'Content-Length': screenshot.length,
+        'Content-Length': screenshot.length.toString(),
       },
       body: screenshot.toString('base64'),
       isBase64Encoded: true,
     };
   } catch (error) {
-    console.error('[Lambda] Error:', error);
+    console.error('[Screenshot] Handler error:', error);
+    
     return {
       statusCode: 500,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: error.message || 'Failed to capture screenshot' }),
+      body: JSON.stringify({ 
+        error: 'Failed to capture screenshot',
+        details: error.message 
+      }),
     };
+  } finally {
+    // Clean up resources for this invocation
+    try {
+      if (page) {
+        await page.close();
+      }
+      if (context_obj) {
+        await context_obj.close();
+      }
+      if (browser) {
+        await browser.close();
+      }
+    } catch (cleanupError) {
+      console.error('[Screenshot] Cleanup error:', cleanupError);
+    }
   }
 };

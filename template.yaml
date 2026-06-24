@@ -6,11 +6,23 @@ Parameters:
   FunctionTimeout:
     Type: Number
     Default: 60
-    Description: Lambda function timeout in seconds
+    Description: Lambda function timeout in seconds (60 is recommended for Chromium operations)
+    MinValue: 30
+    MaxValue: 900
   FunctionMemory:
     Type: Number
     Default: 3008
-    Description: Lambda function memory in MB
+    Description: Lambda function memory in MB (3008 is optimal for Chromium performance)
+    AllowedValues: [1024, 1769, 2048, 3008]
+  AllowedHosts:
+    Type: String
+    Default: '*'
+    Description: Comma-separated list of allowed hostnames. Use '*' to allow all (not recommended for production).
+  EnvironmentStage:
+    Type: String
+    Default: prod
+    Description: Environment stage name
+    AllowedValues: [dev, staging, prod]
 
 Globals:
   Function:
@@ -19,9 +31,12 @@ Globals:
     Runtime: nodejs20.x
     Architectures:
       - x86_64
+    EphemeralStorage:
+      Size: 10240  # 10GB for Chromium and temporary files
     Tags:
       Service: Screenshot Service
       Component: Lambda Function
+      Environment: !Ref EnvironmentStage
       ManagedBy: SAM
 
 Resources:
@@ -31,16 +46,28 @@ Resources:
       FunctionName: screenshot-generator
       CodeUri: lambda/
       Handler: screenshot.handler
-      Description: Generate screenshots of web pages
+      Description: Generate screenshots of web pages using Chromium
       Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:chromium:1
+        # @sparticuz/chromium layer for precompiled Chromium binary
+        - arn:aws:lambda:us-east-1:764366827900:layer:chromium-sv:5
       Environment:
         Variables:
+          # Security: Restrict which hostnames can be screenshotted
+          ALLOWED_HOSTS: !Ref AllowedHosts
+          # Screenshot operation timeouts
+          SCREENSHOT_TIMEOUT: '30000'  # 30 seconds for navigation/wait
+          # Dimension constraints
+          MAX_SCREENSHOT_WIDTH: '3840'
+          MAX_SCREENSHOT_HEIGHT: '2160'
+          # Node.js memory optimization
           NODE_OPTIONS: '--max-old-space-size=2816'
+          # CloudWatch Logs
+          LOG_LEVEL: 'INFO'
       Tags:
         Service: Screenshot Service
         Component: Lambda Function
         Purpose: Screenshot Generation
+        Environment: !Ref EnvironmentStage
         ManagedBy: SAM
       Events:
         ApiEvent:
@@ -82,6 +109,10 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ScreenshotFunction.Arn}/invocations
+        # Set timeout to match or exceed Lambda timeout (max 29s for API Gateway)
+        IntegrationResponses:
+          - StatusCode: 200
+        TimeoutInMillis: 29000
 
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
@@ -101,14 +132,57 @@ Resources:
     Properties:
       RestApiId: !Ref ScreenshotApi
       DeploymentId: !Ref ApiDeployment
-      StageName: prod
+      StageName: !Ref EnvironmentStage
       TracingEnabled: true
       LoggingLevel: INFO
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          LoggingLevel: INFO
+          DataTraceEnabled: false
+          MetricsEnabled: true
       Tags:
         Service: Screenshot Service
         Component: API Stage
-        Purpose: Production Deployment
+        Environment: !Ref EnvironmentStage
+        Purpose: API Deployment
         ManagedBy: SAM
+
+  # CloudWatch Alarm for Lambda errors
+  LambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'screenshot-generator-errors-${EnvironmentStage}'
+      AlarmDescription: Alert when Lambda function has errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ScreenshotFunction
+      TreatMissingData: notBreaching
+
+  # CloudWatch Alarm for Lambda duration
+  LambdaDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'screenshot-generator-duration-${EnvironmentStage}'
+      AlarmDescription: Alert when Lambda function duration exceeds threshold
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 45000  # 45 seconds
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ScreenshotFunction
+      TreatMissingData: notBreaching
 
   LambdaApiPermission:
     Type: AWS::Lambda::Permission
@@ -121,32 +195,40 @@ Resources:
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint for screenshot generation
-    Value: !Sub https://${ScreenshotApi}.execute-api.${AWS::Region}.amazonaws.com/prod/screenshot
+    Value: !Sub https://${ScreenshotApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentStage}/screenshot
     Export:
       Name: !Sub ${AWS::StackName}-ApiEndpoint
-    Tags:
-      Service: Screenshot Service
   
+  ApiEndpointWithExample:
+    Description: Example API call with URL parameter
+    Value: !Sub https://${ScreenshotApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentStage}/screenshot?url=https://example.com&width=1800&height=945
+
   FunctionArn:
     Description: Lambda function ARN
     Value: !GetAtt ScreenshotFunction.Arn
     Export:
       Name: !Sub ${AWS::StackName}-FunctionArn
-    Tags:
-      Service: Screenshot Service
   
   FunctionName:
     Description: Lambda function name
     Value: !Ref ScreenshotFunction
     Export:
       Name: !Sub ${AWS::StackName}-FunctionName
-    Tags:
-      Service: Screenshot Service
   
   ApiId:
     Description: API Gateway REST API ID
     Value: !Ref ScreenshotApi
     Export:
       Name: !Sub ${AWS::StackName}-ApiId
-    Tags:
-      Service: Screenshot Service
+
+  CloudWatchLogsGroup:
+    Description: CloudWatch Logs group for Lambda function
+    Value: !Sub /aws/lambda/${ScreenshotFunction}
+
+  ErrorAlarm:
+    Description: CloudWatch alarm for Lambda errors
+    Value: !Ref LambdaErrorAlarm
+
+  DurationAlarm:
+    Description: CloudWatch alarm for Lambda duration
+    Value: !Ref LambdaDurationAlarm
