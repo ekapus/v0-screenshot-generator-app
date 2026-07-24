@@ -163,8 +163,14 @@ export default function ScreenshotTester() {
             {/* Setup Instructions */}
             <div className="mt-8 pt-8 border-t space-y-4">
               <h3 className="font-semibold">How to Deploy</h3>
+              <p className="text-sm text-muted-foreground">
+                Use our interactive deployment wizard to set up your Lambda function automatically:
+              </p>
+              <Button asChild className="w-full" variant="secondary">
+                <a href="/deploy">Open Deployment Wizard</a>
+              </Button>
               <div className="space-y-3 text-sm text-muted-foreground">
-                <p>To deploy the Lambda function:</p>
+                <p className="text-xs">Or deploy manually:</p>
                 <ol className="list-decimal list-inside space-y-2 ml-2">
                   <li>Install AWS SAM CLI: <code className="bg-muted px-1 rounded">pip install aws-sam-cli</code></li>
                   <li>Build: <code className="bg-muted px-1 rounded">sam build</code></li>
