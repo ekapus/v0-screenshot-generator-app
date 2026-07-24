@@ -67,23 +67,97 @@ echo "  Stack Name: $STACK_NAME"
 echo "  Allowed Hostnames: $ALLOWED_HOSTNAMES"
 echo ""
 
-# Check prerequisites
+# Check prerequisites and install if missing
 echo "Checking prerequisites..."
+echo ""
 
+# Check and install AWS CLI
 if ! command -v aws &> /dev/null; then
-    echo "ERROR: AWS CLI is not installed"
-    echo "Please install it from: https://aws.amazon.com/cli/"
-    exit 1
+    echo "AWS CLI not found. Installing..."
+    
+    # Detect OS
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        if ! command -v brew &> /dev/null; then
+            echo "Homebrew not found. Please install from: https://brew.sh"
+            exit 1
+        fi
+        brew install awscli
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y python3-pip
+            sudo pip3 install awscli
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y python3-pip
+            sudo pip3 install awscli
+        else
+            echo "Could not detect package manager. Please install AWS CLI manually from: https://aws.amazon.com/cli/"
+            exit 1
+        fi
+    elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+        # Windows
+        echo "For Windows, please download the AWS CLI installer from: https://aws.amazon.com/cli/"
+        exit 1
+    fi
 fi
 
-if ! command -v sam &> /dev/null; then
-    echo "ERROR: AWS SAM CLI is not installed"
-    echo "Please install it from: https://aws.amazon.com/serverless/sam/"
+if ! command -v aws &> /dev/null; then
+    echo "ERROR: Failed to install AWS CLI"
     exit 1
 fi
 
 echo "✓ AWS CLI found: $(aws --version)"
+echo ""
+
+# Check and install AWS SAM CLI
+if ! command -v sam &> /dev/null; then
+    echo "AWS SAM CLI not found. Installing..."
+    
+    # Detect OS
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        if ! command -v brew &> /dev/null; then
+            echo "Homebrew not found. Please install from: https://brew.sh"
+            exit 1
+        fi
+        brew tap aws/tap
+        brew install aws-sam-cli
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y python3-pip
+            sudo pip3 install aws-sam-cli
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y python3-pip
+            sudo pip3 install aws-sam-cli
+        else
+            echo "Could not detect package manager. Please install SAM CLI manually from: https://aws.amazon.com/serverless/sam/"
+            exit 1
+        fi
+    elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+        # Windows
+        echo "For Windows, please download the AWS SAM CLI installer from: https://aws.amazon.com/serverless/sam/"
+        exit 1
+    fi
+fi
+
+if ! command -v sam &> /dev/null; then
+    echo "ERROR: Failed to install AWS SAM CLI"
+    exit 1
+fi
+
 echo "✓ SAM CLI found: $(sam --version)"
+echo ""
+
+# Check for Docker (required by SAM)
+if ! command -v docker &> /dev/null; then
+    echo "WARNING: Docker is not installed but is required by SAM CLI for local builds"
+    echo "Please install Docker from: https://www.docker.com/products/docker-desktop"
+    echo "Continuing anyway - deployment may fail if Docker is needed..."
+    echo ""
+fi
+
 echo ""
 
 # Verify credentials
