@@ -4,9 +4,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, CheckCircle, Copy } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AWS_REGIONS = [
@@ -21,7 +20,6 @@ interface SetupFormProps {
 }
 
 export default function SetupForm({ onDeployStart }: SetupFormProps) {
-  const [tab, setTab] = useState('credentials');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -36,33 +34,26 @@ export default function SetupForm({ onDeployStart }: SetupFormProps) {
   const [allowedHostnames, setAllowedHostnames] = useState('');
   const [s3Bucket, setS3Bucket] = useState('');
 
-  const validateCredentials = () => {
+  const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
+    // Credentials validation
     if (!accessKeyId.trim()) {
       newErrors.accessKeyId = 'AWS Access Key ID is required';
     } else if (!/^AKIA[0-9A-Z]{16}$|^[A-Z0-9]{20}$/.test(accessKeyId.trim())) {
-      newErrors.accessKeyId = 'Invalid Access Key format (should be 20 alphanumeric characters or start with AKIA)';
+      newErrors.accessKeyId = 'Invalid Access Key format';
     }
 
     if (!secretAccessKey.trim()) {
       newErrors.secretAccessKey = 'AWS Secret Access Key is required';
     } else if (secretAccessKey.trim().length < 40) {
-      newErrors.secretAccessKey = 'Secret Access Key appears too short (should be 40+ characters)';
+      newErrors.secretAccessKey = 'Secret Access Key appears too short';
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const validateConfiguration = () => {
-    const newErrors: Record<string, string> = {};
-
+    // Configuration validation
     if (!stackName.trim()) {
       newErrors.stackName = 'Stack name is required';
-    }
-
-    if (!/^[a-z0-9-]{1,128}$/.test(stackName)) {
+    } else if (!/^[a-z0-9-]{1,128}$/.test(stackName)) {
       newErrors.stackName = 'Stack name must be lowercase alphanumeric with hyphens';
     }
 
@@ -78,14 +69,8 @@ export default function SetupForm({ onDeployStart }: SetupFormProps) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleNext = () => {
-    if (tab === 'credentials' && validateCredentials()) {
-      setTab('configuration');
-    }
-  };
-
   const handleDeploy = async () => {
-    if (!validateConfiguration()) return;
+    if (!validateForm()) return;
 
     setLoading(true);
     try {
@@ -120,18 +105,7 @@ export default function SetupForm({ onDeployStart }: SetupFormProps) {
 
   return (
     <Card className="p-8">
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="credentials" disabled={loading}>
-            Step 1: AWS Credentials
-          </TabsTrigger>
-          <TabsTrigger value="configuration" disabled={loading || !accessKeyId || !secretAccessKey}>
-            Step 2: Configuration
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Credentials Tab */}
-        <TabsContent value="credentials" className="space-y-6 mt-8">
+      <div className="space-y-8">
           <Alert className="border-blue-200 bg-blue-50">
             <AlertCircle className="h-4 w-4 text-blue-600" />
             <AlertDescription className="text-blue-800">
@@ -223,19 +197,9 @@ export default function SetupForm({ onDeployStart }: SetupFormProps) {
             </code>
           </div>
 
-          <Button onClick={handleNext} disabled={loading || !accessKeyId || !secretAccessKey} className="w-full">
-            Continue to Configuration
-          </Button>
-        </TabsContent>
-
-        {/* Configuration Tab */}
-        <TabsContent value="configuration" className="space-y-6 mt-8">
-          <Alert className="border-green-200 bg-green-50">
-            <CheckCircle className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800">
-              Configure your Lambda deployment settings
-            </AlertDescription>
-          </Alert>
+        {/* Configuration Section */}
+        <div className="border-t pt-8">
+          <h3 className="text-lg font-semibold">Deployment Configuration</h3>
 
           <div className="space-y-4">
             <div>
@@ -322,26 +286,17 @@ export default function SetupForm({ onDeployStart }: SetupFormProps) {
             </div>
           </div>
 
-          <div className="space-y-3 pt-4">
-            <Button
-              onClick={handleDeploy}
-              disabled={loading}
-              className="w-full"
-              size="lg"
-            >
-              {loading ? 'Starting Deployment...' : 'Start Deployment'}
-            </Button>
-            <Button
-              onClick={() => setTab('credentials')}
-              variant="outline"
-              disabled={loading}
-              className="w-full"
-            >
-              Back
-            </Button>
-          </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+
+        <Button
+          onClick={handleDeploy}
+          disabled={loading}
+          className="w-full"
+          size="lg"
+        >
+          {loading ? 'Generating Script...' : 'Generate Deployment Script'}
+        </Button>
+      </div>
     </Card>
   );
 }
