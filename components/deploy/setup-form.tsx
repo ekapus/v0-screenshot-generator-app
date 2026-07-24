@@ -41,14 +41,14 @@ export default function SetupForm({ onDeployStart }: SetupFormProps) {
 
     if (!accessKeyId.trim()) {
       newErrors.accessKeyId = 'AWS Access Key ID is required';
+    } else if (!/^AKIA[0-9A-Z]{16}$|^[A-Z0-9]{20}$/.test(accessKeyId.trim())) {
+      newErrors.accessKeyId = 'Invalid Access Key format (should be 20 alphanumeric characters or start with AKIA)';
     }
 
     if (!secretAccessKey.trim()) {
       newErrors.secretAccessKey = 'AWS Secret Access Key is required';
-    }
-
-    if (accessKeyId.length > 0 && !/^AKIA[0-9A-Z]{16}$/.test(accessKeyId)) {
-      newErrors.accessKeyId = 'Invalid AWS Access Key format';
+    } else if (secretAccessKey.trim().length < 40) {
+      newErrors.secretAccessKey = 'Secret Access Key appears too short (should be 40+ characters)';
     }
 
     setErrors(newErrors);
@@ -136,6 +136,22 @@ export default function SetupForm({ onDeployStart }: SetupFormProps) {
             <AlertCircle className="h-4 w-4 text-blue-600" />
             <AlertDescription className="text-blue-800">
               Your credentials are used only to start the deployment and are never stored on our servers.
+            </AlertDescription>
+          </Alert>
+
+          <Alert className="border-amber-200 bg-amber-50">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-800 text-sm">
+              <strong>How to get AWS credentials:</strong>
+              <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
+                <li>Go to <a href="https://console.aws.amazon.com/iam" target="_blank" rel="noopener noreferrer" className="underline">AWS IAM Console</a></li>
+                <li>Click "Users" in the left menu</li>
+                <li>Select your user or create a new one</li>
+                <li>Go to "Access keys" tab</li>
+                <li>Click "Create access key"</li>
+                <li>Choose "Command Line Interface (CLI)" and confirm</li>
+                <li>Copy both the Access Key ID and Secret Access Key immediately</li>
+              </ol>
             </AlertDescription>
           </Alert>
 

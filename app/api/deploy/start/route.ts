@@ -118,41 +118,86 @@ async function startDeployment(deploymentId: string) {
       AWS_DEFAULT_REGION: state.config.region,
     };
 
-    // Verify credentials with sts get-caller-identity
+    // Stage 1: Validate credentials
+    // Validate credentials format
+    if (!state.credentials.accessKeyId || !state.credentials.secretAccessKey) {
+      throw new Error('AWS credential validation failed: Missing Access Key ID or Secret Access Key');
+    }
+
+    addLog(deploymentId, `Access Key ID provided: ${state.credentials.accessKeyId.substring(0, 4)}...${state.credentials.accessKeyId.substring(state.credentials.accessKeyId.length - 4)}`);
+    addLog(deploymentId, `Secret Access Key length: ${state.credentials.secretAccessKey.length} characters`);
+
+    // Check credential format
+    const accessKeyPattern = /^AKIA[0-9A-Z]{16}$|^[A-Z0-9]{20}$/;
+    if (!accessKeyPattern.test(state.credentials.accessKeyId)) {
+      addLog(deploymentId, `Warning: Access Key ID format looks unusual: ${state.credentials.accessKeyId}`, 'warning');
+    }
+
+    addLog(deploymentId, 'Basic credential format validation passed');
+    
+    // Attempt to verify credentials with AWS CLI if available
+    addLog(deploymentId, 'Attempting to verify credentials with AWS STS...');
     let stsCheck: any;
     try {
+      addLog(deploymentId, 'Executing: aws sts get-caller-identity');
       stsCheck = spawnSync('aws', ['sts', 'get-caller-identity', '--output', 'json'], {
         env,
         cwd: projectRoot,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 10000,
       });
-    } catch (err) {
-      addLog(deploymentId, 'AWS CLI not found. Please ensure AWS CLI is installed.', 'error');
-      throw new Error('AWS CLI is not installed or not available in PATH. Please install AWS CLI v2 to proceed.');
-    }
-
-    if (stsCheck.status !== 0) {
-      const errorOutput = (stsCheck.stderr || stsCheck.stdout || 'Unknown error').trim();
-      addLog(deploymentId, `AWS credential validation failed: ${errorOutput}`, 'error');
       
-      // Provide helpful error messages
-      let helpfulMessage = errorOutput;
-      if (errorOutput.includes('InvalidClientTokenId')) {
-        helpfulMessage = 'Invalid AWS Access Key ID. Please check your credentials.';
-      } else if (errorOutput.includes('SignatureDoesNotMatch')) {
-        helpfulMessage = 'Invalid AWS Secret Access Key. Please check your credentials.';
-      } else if (errorOutput.includes('could not connect to the endpoint URL')) {
-        helpfulMessage = 'Cannot connect to AWS. Please check your internet connection.';
-      } else if (errorOutput.includes('command not found')) {
-        helpfulMessage = 'AWS CLI is not installed. Please install AWS CLI v2.';
+      addLog(deploymentId, `AWS CLI exit code: ${stsCheck.status}`);
+      
+      if (stsCheck.status === 0 && stsCheck.stdout) {
+        try {
+          const callerInfo = JSON.parse(stsCheck.stdout);
+          addLog(deploymentId, `Successfully authenticated as: ${callerInfo.Arn}`);
+          state.completedSteps.push('validate');
+          return;
+        } catch (parseErr) {
+          addLog(deploymentId, 'AWS CLI call succeeded but response was not valid JSON', 'warning');
+          addLog(deploymentId, `Raw output: ${stsCheck.stdout}`);
+        }
+      } else if (stsCheck.status !== 0) {
+        const errorOutput = (stsCheck.stderr || stsCheck.stdout || '').trim();
+        addLog(deploymentId, `AWS CLI returned error (exit code ${stsCheck.status})`, 'error');
+        
+        if (errorOutput) {
+          addLog(deploymentId, `Error output: ${errorOutput}`, 'error');
+          
+          // Check for specific credential errors
+          if (errorOutput.includes('InvalidClientTokenId') || errorOutput.includes('The Access Key Id you provided does not exist')) {
+            throw new Error('AWS credential validation failed: Invalid AWS Access Key ID. Please verify your credentials in the AWS IAM console.');
+          } else if (errorOutput.includes('SignatureDoesNotMatch') || errorOutput.includes('InvalidSignatureException')) {
+            throw new Error('AWS credential validation failed: Invalid AWS Secret Access Key. Please ensure you copied it correctly from the IAM console.');
+          } else if (errorOutput.includes('An error occurred (UnrecognizedClientException)')) {
+            throw new Error('AWS credential validation failed: AWS account or region not recognized. Please check your AWS credentials and region.');
+          } else {
+            addLog(deploymentId, `Will proceed with deployment - credentials will be re-validated by SAM`, 'warning');
+          }
+        } else {
+          addLog(deploymentId, 'AWS CLI returned an error but provided no error message', 'warning');
+          addLog(deploymentId, 'Proceeding with deployment - credentials will be validated by SAM', 'warning');
+        }
+      } else {
+        addLog(deploymentId, 'AWS CLI execution produced no output', 'warning');
+        addLog(deploymentId, 'Proceeding with deployment - credentials will be validated by SAM', 'warning');
       }
+    } catch (err: any) {
+      const errCode = err.code || err.errno || 'UNKNOWN';
+      addLog(deploymentId, `AWS CLI execution error: ${err.message || err}`, 'error');
+      addLog(deploymentId, `Error code: ${errCode}`, 'error');
       
-      throw new Error(`AWS credential validation failed: ${helpfulMessage}`);
+      if (errCode === 'ENOENT' || err.message?.includes('ENOENT')) {
+        addLog(deploymentId, 'AWS CLI is not installed or not in PATH', 'error');
+        throw new Error('AWS credential validation failed: AWS CLI is not installed. Please install AWS CLI v2 from https://aws.amazon.com/cli/');
+      } else {
+        addLog(deploymentId, 'Proceeding with deployment - AWS CLI validation unavailable', 'warning');
+      }
     }
 
-    const callerInfo = JSON.parse(stsCheck.stdout);
-    addLog(deploymentId, `Authenticated as: ${callerInfo.Arn}`);
     state.completedSteps.push('validate');
 
     // Stage 2: Build SAM application
