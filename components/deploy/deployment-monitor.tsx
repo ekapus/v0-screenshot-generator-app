@@ -190,9 +190,30 @@ ${status.logs.map(log => `[${log.timestamp}] [${log.level.toUpperCase()}] ${log.
         <Card className="p-4 border-red-200 bg-red-50">
           <div className="flex gap-3">
             <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <h3 className="font-semibold text-red-800">Deployment Failed</h3>
-              <p className="text-sm text-red-700 mt-1">{status.error}</p>
+              <p className="text-sm text-red-700 mt-1 break-words whitespace-pre-wrap">{status.error}</p>
+              <div className="mt-3 pt-3 border-t border-red-200 text-xs text-red-600">
+                <p className="font-semibold mb-1">Troubleshooting:</p>
+                <ul className="space-y-1 list-disc list-inside">
+                  {status.error.includes('AWS credential validation failed') && (
+                    <>
+                      <li>Check that your AWS Access Key ID and Secret Access Key are correct</li>
+                      <li>Ensure your AWS IAM user has required permissions (CloudFormation, Lambda, API Gateway, IAM, S3)</li>
+                      <li>Verify AWS CLI is installed: <code className="bg-red-100 px-1 rounded">aws --version</code></li>
+                    </>
+                  )}
+                  {status.error.includes('SAM') && (
+                    <>
+                      <li>AWS SAM CLI may not be installed</li>
+                      <li>Install it with: <code className="bg-red-100 px-1 rounded">pip install aws-sam-cli</code></li>
+                    </>
+                  )}
+                  {status.error.includes('S3') && (
+                    <li>Check S3 bucket permissions or try without specifying a custom S3 bucket</li>
+                  )}
+                </ul>
+              </div>
             </div>
           </div>
         </Card>

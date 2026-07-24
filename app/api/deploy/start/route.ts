@@ -119,14 +119,36 @@ async function startDeployment(deploymentId: string) {
     };
 
     // Verify credentials with sts get-caller-identity
-    const stsCheck = spawnSync('aws', ['sts', 'get-caller-identity', '--output', 'json'], {
-      env,
-      cwd: projectRoot,
-      encoding: 'utf-8',
-    });
+    let stsCheck: any;
+    try {
+      stsCheck = spawnSync('aws', ['sts', 'get-caller-identity', '--output', 'json'], {
+        env,
+        cwd: projectRoot,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (err) {
+      addLog(deploymentId, 'AWS CLI not found. Please ensure AWS CLI is installed.', 'error');
+      throw new Error('AWS CLI is not installed or not available in PATH. Please install AWS CLI v2 to proceed.');
+    }
 
     if (stsCheck.status !== 0) {
-      throw new Error(`AWS credential validation failed: ${stsCheck.stderr}`);
+      const errorOutput = (stsCheck.stderr || stsCheck.stdout || 'Unknown error').trim();
+      addLog(deploymentId, `AWS credential validation failed: ${errorOutput}`, 'error');
+      
+      // Provide helpful error messages
+      let helpfulMessage = errorOutput;
+      if (errorOutput.includes('InvalidClientTokenId')) {
+        helpfulMessage = 'Invalid AWS Access Key ID. Please check your credentials.';
+      } else if (errorOutput.includes('SignatureDoesNotMatch')) {
+        helpfulMessage = 'Invalid AWS Secret Access Key. Please check your credentials.';
+      } else if (errorOutput.includes('could not connect to the endpoint URL')) {
+        helpfulMessage = 'Cannot connect to AWS. Please check your internet connection.';
+      } else if (errorOutput.includes('command not found')) {
+        helpfulMessage = 'AWS CLI is not installed. Please install AWS CLI v2.';
+      }
+      
+      throw new Error(`AWS credential validation failed: ${helpfulMessage}`);
     }
 
     const callerInfo = JSON.parse(stsCheck.stdout);
@@ -139,16 +161,24 @@ async function startDeployment(deploymentId: string) {
     state.progress = 20;
     addLog(deploymentId, 'Starting SAM build');
 
-    const buildResult = spawnSync('sam', ['build', '--use-container'], {
-      env,
-      cwd: projectRoot,
-      encoding: 'utf-8',
-      maxBuffer: 10 * 1024 * 1024,
-    });
+    let buildResult: any;
+    try {
+      buildResult = spawnSync('sam', ['build', '--use-container'], {
+        env,
+        cwd: projectRoot,
+        encoding: 'utf-8',
+        maxBuffer: 10 * 1024 * 1024,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (err) {
+      addLog(deploymentId, 'SAM CLI not found. Please ensure AWS SAM CLI is installed.', 'error');
+      throw new Error('AWS SAM CLI is not installed. Please install it to proceed.');
+    }
 
     if (buildResult.status !== 0) {
-      addLog(deploymentId, buildResult.stderr || 'Build failed', 'error');
-      throw new Error('SAM build failed');
+      const errorMsg = (buildResult.stderr || buildResult.stdout || 'Build failed').trim();
+      addLog(deploymentId, errorMsg, 'error');
+      throw new Error(`SAM build failed: ${errorMsg}`);
     }
 
     addLog(deploymentId, 'Build completed successfully');
@@ -177,28 +207,36 @@ async function startDeployment(deploymentId: string) {
       }
     }
 
-    const packageResult = spawnSync(
-      'sam',
-      [
-        'package',
-        '--output-template-file',
-        '.aws-sam/packaged.yaml',
-        '--s3-bucket',
-        s3Bucket,
-        '--region',
-        state.config.region,
-      ],
-      {
-        env,
-        cwd: projectRoot,
-        encoding: 'utf-8',
-        maxBuffer: 10 * 1024 * 1024,
-      }
-    );
+    let packageResult: any;
+    try {
+      packageResult = spawnSync(
+        'sam',
+        [
+          'package',
+          '--output-template-file',
+          '.aws-sam/packaged.yaml',
+          '--s3-bucket',
+          s3Bucket,
+          '--region',
+          state.config.region,
+        ],
+        {
+          env,
+          cwd: projectRoot,
+          encoding: 'utf-8',
+          maxBuffer: 10 * 1024 * 1024,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }
+      );
+    } catch (err) {
+      addLog(deploymentId, 'SAM package command failed', 'error');
+      throw new Error('SAM package failed');
+    }
 
     if (packageResult.status !== 0) {
-      addLog(deploymentId, packageResult.stderr || 'Package failed', 'error');
-      throw new Error('SAM package failed');
+      const errorMsg = (packageResult.stderr || packageResult.stdout || 'Package failed').trim();
+      addLog(deploymentId, errorMsg, 'error');
+      throw new Error(`SAM package failed: ${errorMsg}`);
     }
 
     addLog(deploymentId, 'Package completed successfully');
@@ -212,35 +250,42 @@ async function startDeployment(deploymentId: string) {
 
     const deployEnvVars = state.config.allowedHostnames.join(',') || '*';
 
-    const deployResult = spawnSync(
-      'sam',
-      [
-        'deploy',
-        '--template-file',
-        '.aws-sam/packaged.yaml',
-        '--stack-name',
-        state.config.stackName,
-        '--region',
-        state.config.region,
-        '--capabilities',
-        'CAPABILITY_IAM',
-        '--no-confirm-changeset',
-        '--parameter-overrides',
-        `AllowedHostnames="${deployEnvVars}"`,
-      ],
-      {
-        env,
-        cwd: projectRoot,
-        encoding: 'utf-8',
-        maxBuffer: 10 * 1024 * 1024,
-        timeout: 600000, // 10 minutes
-      }
-    );
+    let deployResult: any;
+    try {
+      deployResult = spawnSync(
+        'sam',
+        [
+          'deploy',
+          '--template-file',
+          '.aws-sam/packaged.yaml',
+          '--stack-name',
+          state.config.stackName,
+          '--region',
+          state.config.region,
+          '--capabilities',
+          'CAPABILITY_IAM',
+          '--no-confirm-changeset',
+          '--parameter-overrides',
+          `AllowedHostnames="${deployEnvVars}"`,
+        ],
+        {
+          env,
+          cwd: projectRoot,
+          encoding: 'utf-8',
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 600000, // 10 minutes
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }
+      );
+    } catch (err) {
+      addLog(deploymentId, 'SAM deploy command failed', 'error');
+      throw new Error('CloudFormation deployment failed');
+    }
 
     if (deployResult.status !== 0) {
-      const errorMsg = deployResult.stderr || deployResult.stdout || 'Deployment failed';
+      const errorMsg = (deployResult.stderr || deployResult.stdout || 'Deployment failed').trim();
       addLog(deploymentId, errorMsg, 'error');
-      throw new Error('CloudFormation deployment failed');
+      throw new Error(`CloudFormation deployment failed: ${errorMsg}`);
     }
 
     addLog(deploymentId, 'CloudFormation deployment completed');
