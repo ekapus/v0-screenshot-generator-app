@@ -1,0 +1,14 @@
+# AWS SAM Build Directory
+.aws-sam/
+
+# Lambda Layer directory
+layer/
+
+# Chromium layer zip
+chromium-layer.zip
+
+# Node modules
+lambda/node_modules/
+
+# SAM deployment artifacts
+samconfig.toml.metadata.json

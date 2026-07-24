@@ -8,9 +8,10 @@ async function getBrowser() {
     return browser;
   }
 
-  // Use system Chromium on Lightsail/Linux
-  // Fallback to standard paths if running locally
+  // Lambda provides Chromium via the chromium layer
+  // Path on Lambda: /opt/chromium/chromium
   const chromiumPaths = [
+    '/opt/chromium/chromium',  // Lambda layer path
     '/usr/bin/chromium-browser',
     '/usr/bin/chromium',
     '/snap/bin/chromium',
@@ -22,6 +23,7 @@ async function getBrowser() {
     try {
       require('fs').accessSync(path);
       executablePath = path;
+      console.log(`[Screenshot] Found Chromium at: ${executablePath}`);
       break;
     } catch (e) {
       // Continue to next path
@@ -29,7 +31,7 @@ async function getBrowser() {
   }
 
   if (!executablePath) {
-    throw new Error('Chromium browser not found. Please install chromium or chromium-browser.');
+    throw new Error('Chromium browser not found. Ensure the chromium Lambda layer is attached.');
   }
 
   console.log(`[Screenshot] Using Chromium at: ${executablePath}`);
@@ -48,9 +50,20 @@ async function getBrowser() {
   return browser;
 }
 
+function isHostnameAllowed(hostname) {
+  const allowedHostnames = (process.env.ALLOWED_HOSTNAMES || 'localhost,example.com')
+    .split(',')
+    .map(h => h.trim().toLowerCase());
+  
+  return allowedHostnames.includes(hostname.toLowerCase());
+}
+
 exports.handler = async (event, context) => {
   try {
-    const { url, width = 1800, height = 945 } = event.queryStringParameters || {};
+    console.log(`[Lambda] Event: ${JSON.stringify(event)}`);
+    
+    const queryParams = event.queryStringParameters || {};
+    const { url, width, height, allowedHost } = queryParams;
 
     // Validate URL
     if (!url) {
@@ -72,16 +85,13 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Security: Only allow screenshots of same hostname as the request
-    const requestHostname = event.requestHostname;
-    const screenshotHostname = parsedUrl.hostname;
-
-    if (screenshotHostname !== requestHostname) {
-      console.warn(`[Lambda] Rejected screenshot request for different hostname: ${screenshotHostname} (request from: ${requestHostname})`);
+    // Security: Validate hostname if strict mode is enabled
+    if (allowedHost !== 'false' && !isHostnameAllowed(parsedUrl.hostname)) {
+      console.warn(`[Lambda] Rejected screenshot request for hostname: ${parsedUrl.hostname} (allowed: ${process.env.ALLOWED_HOSTNAMES})`);
       return {
         statusCode: 403,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Screenshots only allowed for the same hostname' }),
+        body: JSON.stringify({ error: 'Screenshots not allowed for this hostname' }),
       };
     }
 
