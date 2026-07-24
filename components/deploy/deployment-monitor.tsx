@@ -13,15 +13,11 @@ import LogViewer from './log-viewer';
 interface DeploymentStatus {
   stage: string;
   progress: number;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'running' | 'failed' | 'pending' | 'completed';
   currentStep: string;
   completedSteps: string[];
   logs: Array<{ timestamp: string; message: string; level: 'info' | 'error' | 'warning' }>;
-  stackOutput?: {
-    ApiEndpoint?: string;
-    LambdaFunctionName?: string;
-    LambdaRoleArn?: string;
-  };
+  deployScript?: string;
   error?: string;
 }
 
@@ -34,10 +30,8 @@ interface DeploymentMonitorProps {
 
 const STAGES = [
   { id: 'validate', label: 'Validating Credentials' },
-  { id: 'build', label: 'Building SAM Application' },
-  { id: 'package', label: 'Packaging Application' },
-  { id: 'deploy', label: 'Deploying to CloudFormation' },
-  { id: 'outputs', label: 'Retrieving Outputs' },
+  { id: 'generate', label: 'Generating Script' },
+  { id: 'complete', label: 'Ready to Deploy' },
 ];
 
 export default function DeploymentMonitor({
@@ -113,9 +107,9 @@ export default function DeploymentMonitor({
   };
 
   const handleCopyEndpoint = () => {
-    if (status.stackOutput?.ApiEndpoint) {
-      navigator.clipboard.writeText(status.stackOutput.ApiEndpoint);
-      toast.success('Endpoint copied to clipboard');
+    if (status.deployScript) {
+      navigator.clipboard.writeText(status.deployScript);
+      toast.success('Script copied to clipboard');
     }
   };
 
@@ -130,10 +124,8 @@ Timestamp: ${new Date().toISOString()}
 
 Allowed Hostnames: ${allowedHostnames || 'None'}
 
-Stack Outputs:
-${status.stackOutput?.ApiEndpoint ? `API Endpoint: ${status.stackOutput.ApiEndpoint}` : ''}
-${status.stackOutput?.LambdaFunctionName ? `Lambda Function: ${status.stackOutput.LambdaFunctionName}` : ''}
-${status.stackOutput?.LambdaRoleArn ? `IAM Role: ${status.stackOutput.LambdaRoleArn}` : ''}
+Deployment Script Generated: ${status.deployScript ? 'Yes' : 'No'}
+Script Length: ${status.deployScript?.length || 0} characters
 
 Logs:
 ${status.logs.map(log => `[${log.timestamp}] [${log.level.toUpperCase()}] ${log.message}`).join('\n')}
@@ -219,36 +211,11 @@ ${status.logs.map(log => `[${log.timestamp}] [${log.level.toUpperCase()}] ${log.
         </Card>
       )}
 
-      {/* Output */}
-      {status.status === 'completed' && status.stackOutput?.ApiEndpoint && (
+      {/* Success Message */}
+      {status.status === 'completed' && (
         <Card className="p-6 bg-green-50 border-green-200">
-          <h3 className="font-semibold mb-4 text-green-900">Deployment Outputs</h3>
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs text-green-700 mb-1 uppercase font-semibold">API Endpoint</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 bg-white p-3 rounded-md text-xs overflow-x-auto border border-green-200">
-                  {status.stackOutput.ApiEndpoint}
-                </code>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleCopyEndpoint}
-                  className="flex-shrink-0"
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            {status.stackOutput.LambdaFunctionName && (
-              <div>
-                <p className="text-xs text-green-700 mb-1 uppercase font-semibold">Function Name</p>
-                <code className="bg-white p-3 rounded-md text-xs block border border-green-200">
-                  {status.stackOutput.LambdaFunctionName}
-                </code>
-              </div>
-            )}
-          </div>
+          <h3 className="font-semibold mb-2 text-green-900">Configuration Complete!</h3>
+          <p className="text-sm text-green-800">Your deployment script has been generated successfully. Download it and run on your local machine to deploy to AWS Lambda.</p>
         </Card>
       )}
 
