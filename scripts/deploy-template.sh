@@ -70,30 +70,54 @@ echo ""
 # Check prerequisites and install if missing
 echo "Checking prerequisites..."
 echo ""
+echo "Note: First run may take 5-10 minutes if tools need to be installed."
+echo "This is normal - dependencies are being compiled. Please be patient."
+echo ""
 
 # Check and install AWS CLI
 if ! command -v aws &> /dev/null; then
-    echo "AWS CLI not found. Installing..."
+    echo "AWS CLI not found. Installing (this may take 2-3 minutes)..."
     
     # Detect OS
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS
+        # macOS - use Homebrew (fastest)
         if ! command -v brew &> /dev/null; then
             echo "Homebrew not found. Please install from: https://brew.sh"
             exit 1
         fi
+        echo "Installing via Homebrew..."
         brew install awscli
     elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        # Linux
-        if command -v apt-get &> /dev/null; then
-            sudo apt-get update && sudo apt-get install -y python3-pip
-            sudo pip3 install awscli
-        elif command -v yum &> /dev/null; then
-            sudo yum install -y python3-pip
-            sudo pip3 install awscli
+        # Linux - try bundled installer first (faster than pip)
+        echo "Downloading AWS CLI bundled installer (faster than pip)..."
+        TMPDIR=$(mktemp -d)
+        cd "$TMPDIR" || exit 1
+        
+        # Detect architecture
+        ARCH=$(uname -m)
+        case "$ARCH" in
+            x86_64) ARCH="x86_64" ;;
+            aarch64) ARCH="aarch64" ;;
+            *) ARCH="x86_64" ;; # fallback
+        esac
+        
+        # Download bundled installer
+        if curl -s -f "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" -o "awscliv2.zip"; then
+            unzip -q awscliv2.zip
+            sudo ./aws/install
+            cd - > /dev/null || exit 1
+            rm -rf "$TMPDIR"
         else
-            echo "Could not detect package manager. Please install AWS CLI manually from: https://aws.amazon.com/cli/"
-            exit 1
+            # Fallback to pip
+            echo "Bundled installer not available, using pip (slower but will work)..."
+            cd - > /dev/null || exit 1
+            rm -rf "$TMPDIR"
+            if command -v apt-get &> /dev/null; then
+                sudo apt-get update && sudo apt-get install -y python3-pip
+            elif command -v yum &> /dev/null; then
+                sudo yum install -y python3-pip
+            fi
+            sudo pip3 install --upgrade pip awscli
         fi
     elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
         # Windows
@@ -112,29 +136,29 @@ echo ""
 
 # Check and install AWS SAM CLI
 if ! command -v sam &> /dev/null; then
-    echo "AWS SAM CLI not found. Installing..."
+    echo "AWS SAM CLI not found. Installing (this may take 3-5 minutes, please be patient)..."
     
     # Detect OS
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS
+        # macOS - use Homebrew (fastest)
         if ! command -v brew &> /dev/null; then
             echo "Homebrew not found. Please install from: https://brew.sh"
             exit 1
         fi
+        echo "Installing via Homebrew..."
         brew tap aws/tap
         brew install aws-sam-cli
     elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        # Linux
+        # Linux - use pip with optimization flags
         if command -v apt-get &> /dev/null; then
             sudo apt-get update && sudo apt-get install -y python3-pip
-            sudo pip3 install aws-sam-cli
         elif command -v yum &> /dev/null; then
             sudo yum install -y python3-pip
-            sudo pip3 install aws-sam-cli
-        else
-            echo "Could not detect package manager. Please install SAM CLI manually from: https://aws.amazon.com/serverless/sam/"
-            exit 1
         fi
+        # Install with --no-cache-dir to reduce disk I/O (speeds up installation)
+        echo "Installing via pip (this will compile packages, please wait)..."
+        sudo pip3 install --upgrade pip --quiet
+        sudo pip3 install --no-cache-dir --quiet aws-sam-cli
     elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
         # Windows
         echo "For Windows, please download the AWS SAM CLI installer from: https://aws.amazon.com/serverless/sam/"
