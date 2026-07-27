@@ -105,12 +105,12 @@ if ! command -v aws &> /dev/null; then
         if curl -s -f "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" -o "awscliv2.zip"; then
             unzip -q awscliv2.zip
             sudo ./aws/install
-            cd - > /dev/null || exit 1
+            cd - > /dev/null
             rm -rf "$TMPDIR"
         else
             # Fallback to pip
             echo "Bundled installer not available, using pip (slower but will work)..."
-            cd - > /dev/null || exit 1
+            cd - > /dev/null
             rm -rf "$TMPDIR"
             if command -v apt-get &> /dev/null; then
                 sudo apt-get update && sudo apt-get install -y python3-pip
