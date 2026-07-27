@@ -159,16 +159,33 @@ if ! command -v sam &> /dev/null; then
         echo "Installing via pip (this will compile packages, please wait)..."
         sudo pip3 install --upgrade pip --quiet
         sudo pip3 install --no-cache-dir --quiet aws-sam-cli
+        
+        # SAM may be installed to ~/.local/bin on Linux, add to PATH
+        export PATH="/root/.local/bin:/home/*/local/bin:$PATH"
     elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
         # Windows
         echo "For Windows, please download the AWS SAM CLI installer from: https://aws.amazon.com/serverless/sam/"
         exit 1
     fi
+    
+    # Refresh command cache after installation
+    hash -r
 fi
 
 if ! command -v sam &> /dev/null; then
-    echo "ERROR: Failed to install AWS SAM CLI"
-    exit 1
+    echo "WARNING: SAM CLI not found in PATH after installation"
+    echo "Attempting to locate sam binary..."
+    
+    # Try to find sam in common locations
+    if [ -f "/root/.local/bin/sam" ]; then
+        export PATH="/root/.local/bin:$PATH"
+    elif [ -f "/usr/local/bin/sam" ]; then
+        export PATH="/usr/local/bin:$PATH"
+    else
+        echo "ERROR: Failed to install or locate AWS SAM CLI"
+        echo "Please install manually from: https://aws.amazon.com/serverless/sam/"
+        exit 1
+    fi
 fi
 
 echo "✓ SAM CLI found: $(sam --version)"
