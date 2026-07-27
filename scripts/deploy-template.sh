@@ -140,14 +140,21 @@ if ! command -v sam &> /dev/null; then
     
     # Detect OS
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS - use Homebrew (fastest)
-        if ! command -v brew &> /dev/null; then
-            echo "Homebrew not found. Please install from: https://brew.sh"
-            exit 1
+        # macOS - try Homebrew first, fall back to pip
+        if command -v brew &> /dev/null; then
+            echo "Installing via Homebrew..."
+            if brew tap aws/tap && brew install aws-sam-cli 2>/dev/null; then
+                echo "Successfully installed via Homebrew"
+            else
+                echo "Homebrew installation failed, trying pip instead..."
+                pip3 install --upgrade pip --quiet
+                pip3 install --no-cache-dir --quiet aws-sam-cli
+            fi
+        else
+            echo "Homebrew not found, installing via pip..."
+            pip3 install --upgrade pip --quiet
+            pip3 install --no-cache-dir --quiet aws-sam-cli
         fi
-        echo "Installing via Homebrew..."
-        brew tap aws/tap
-        brew install aws-sam-cli
     elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
         # Linux - use pip with optimization flags
         if command -v apt-get &> /dev/null; then
@@ -160,8 +167,8 @@ if ! command -v sam &> /dev/null; then
         sudo pip3 install --upgrade pip --quiet
         sudo pip3 install --no-cache-dir --quiet aws-sam-cli
         
-        # SAM may be installed to ~/.local/bin on Linux, add to PATH
-        export PATH="/root/.local/bin:/home/*/local/bin:$PATH"
+        # SAM may be installed to ~/.local/bin on Linux/macOS, add to PATH
+        export PATH="$HOME/.local/bin:/root/.local/bin:/home/*/local/bin:$PATH"
     elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
         # Windows
         echo "For Windows, please download the AWS SAM CLI installer from: https://aws.amazon.com/serverless/sam/"
@@ -177,15 +184,22 @@ if ! command -v sam &> /dev/null; then
     echo "Attempting to locate sam binary..."
     
     # Try to find sam in common locations
-    if [ -f "/root/.local/bin/sam" ]; then
-        export PATH="/root/.local/bin:$PATH"
-    elif [ -f "/usr/local/bin/sam" ]; then
-        export PATH="/usr/local/bin:$PATH"
-    else
+    SAM_FOUND=0
+    for SAM_PATH in "$HOME/.local/bin/sam" "/root/.local/bin/sam" "/usr/local/bin/sam" "/opt/homebrew/bin/sam"; do
+        if [ -f "$SAM_PATH" ]; then
+            export PATH="$(dirname "$SAM_PATH"):$PATH"
+            SAM_FOUND=1
+            break
+        fi
+    done
+    
+    if [ $SAM_FOUND -eq 0 ]; then
         echo "ERROR: Failed to install or locate AWS SAM CLI"
         echo "Please install manually from: https://aws.amazon.com/serverless/sam/"
         exit 1
     fi
+    
+    hash -r
 fi
 
 echo "✓ SAM CLI found: $(sam --version)"
