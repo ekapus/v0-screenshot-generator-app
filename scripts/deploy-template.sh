@@ -233,12 +233,32 @@ echo ""
 
 # Verify credentials
 echo "Verifying AWS credentials..."
-if ! aws sts get-caller-identity --region "$AWS_REGION" > /dev/null 2>&1; then
+
+# Test credentials (STS is global, don't use --region flag)
+CALLER_OUTPUT=$(aws sts get-caller-identity --output json 2>&1)
+CALLER_STATUS=$?
+
+if [ $CALLER_STATUS -ne 0 ]; then
     echo "ERROR: AWS credentials are invalid or expired"
-    echo "Please check your AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY"
+    echo ""
+    echo "Credentials configured:"
+    echo "  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:0:4}...${AWS_ACCESS_KEY_ID: -4}"
+    echo "  AWS_REGION: $AWS_REGION"
+    echo ""
+    echo "AWS Error response:"
+    echo "$CALLER_OUTPUT"
+    echo ""
+    echo "Troubleshooting:"
+    echo "  1. Check that AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are correct"
+    echo "  2. Verify the keys have not expired"
+    echo "  3. Ensure the IAM user has permissions for: CloudFormation, Lambda, API Gateway, S3, IAM"
+    echo "  4. Try running: aws sts get-caller-identity"
     exit 1
 fi
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text --region "$AWS_REGION")
+
+# Parse Account ID
+ACCOUNT_ID=$(echo "$CALLER_OUTPUT" | grep -o '"Account": "[^"]*"' | cut -d'"' -f4)
+
 echo "✓ Authenticated as AWS Account: $ACCOUNT_ID"
 echo ""
 
@@ -278,14 +298,22 @@ echo "Stage 2: Creating S3 Bucket"
 echo "==========================================="
 
 # Check if bucket exists, if not create it
-if aws s3 ls "s3://$S3_BUCKET" --region "$AWS_REGION" 2>&1 | grep -q 'NoSuchBucket'; then
-    echo "Creating S3 bucket: $S3_BUCKET"
-    aws s3 mb "s3://$S3_BUCKET" --region "$AWS_REGION"
-    echo "✓ S3 bucket created"
-elif aws s3 ls "s3://$S3_BUCKET" --region "$AWS_REGION" > /dev/null 2>&1; then
+S3_CHECK=$(aws s3 ls "s3://$S3_BUCKET" 2>&1)
+S3_STATUS=$?
+
+if [ $S3_STATUS -eq 0 ]; then
     echo "✓ S3 bucket already exists: $S3_BUCKET"
+elif echo "$S3_CHECK" | grep -q 'NoSuchBucket'; then
+    echo "Creating S3 bucket: $S3_BUCKET"
+    if [ "$AWS_REGION" = "us-east-1" ]; then
+        aws s3 mb "s3://$S3_BUCKET"
+    else
+        aws s3 mb "s3://$S3_BUCKET" --region "$AWS_REGION"
+    fi
+    echo "✓ S3 bucket created"
 else
     echo "ERROR: Could not verify S3 bucket"
+    echo "Response: $S3_CHECK"
     exit 1
 fi
 
