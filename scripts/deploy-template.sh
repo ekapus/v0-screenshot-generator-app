@@ -140,20 +140,36 @@ if ! command -v sam &> /dev/null; then
     
     # Detect OS
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS - try Homebrew first, fall back to pip
+        # macOS - try Homebrew first, fall back to pipx
         if command -v brew &> /dev/null; then
             echo "Installing via Homebrew..."
             if brew tap aws/tap && brew install aws-sam-cli 2>/dev/null; then
                 echo "Successfully installed via Homebrew"
             else
-                echo "Homebrew installation failed, trying pip instead..."
-                pip3 install --upgrade pip --quiet
-                pip3 install --no-cache-dir --quiet aws-sam-cli
+                echo "Homebrew installation failed, trying pipx instead..."
+                # Install pipx if not available
+                if ! command -v pipx &> /dev/null; then
+                    echo "Installing pipx..."
+                    brew install pipx
+                fi
+                # Use pipx to install SAM CLI (works with Python's externally-managed-environment)
+                pipx install aws-sam-cli
             fi
         else
-            echo "Homebrew not found, installing via pip..."
-            pip3 install --upgrade pip --quiet
-            pip3 install --no-cache-dir --quiet aws-sam-cli
+            echo "Homebrew not found, installing via pipx..."
+            # Install pipx first
+            if ! command -v pipx &> /dev/null; then
+                echo "Installing pipx..."
+                # Try to install pipx via pip with --break-system-packages or virtual env
+                python3 -m pip install --user pipx 2>/dev/null || {
+                    echo "Creating virtual environment for pipx..."
+                    python3 -m venv "$HOME/.venv-pipx"
+                    source "$HOME/.venv-pipx/bin/activate"
+                    pip install pipx
+                }
+            fi
+            # Use pipx to install SAM CLI
+            pipx install aws-sam-cli
         fi
     elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
         # Linux - use pip with optimization flags
@@ -185,7 +201,7 @@ if ! command -v sam &> /dev/null; then
     
     # Try to find sam in common locations
     SAM_FOUND=0
-    for SAM_PATH in "$HOME/.local/bin/sam" "/root/.local/bin/sam" "/usr/local/bin/sam" "/opt/homebrew/bin/sam"; do
+    for SAM_PATH in "$HOME/.local/bin/sam" "$HOME/.venv-pipx/bin/sam" "/root/.local/bin/sam" "/usr/local/bin/sam" "/opt/homebrew/bin/sam"; do
         if [ -f "$SAM_PATH" ]; then
             export PATH="$(dirname "$SAM_PATH"):$PATH"
             SAM_FOUND=1
