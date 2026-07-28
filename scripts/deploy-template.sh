@@ -40,8 +40,6 @@ SKIP_DEPENDENCY_CHECK="false"
 # DEPLOYMENT SCRIPT - DO NOT MODIFY BELOW THIS LINE
 # ============================================================================
 
-set -e  # Exit on error
-
 echo "==========================================="
 echo "AWS Lambda Screenshot Service Deployment"
 echo "==========================================="
@@ -171,7 +169,8 @@ if [ "$SKIP_DEPENDENCY_CHECK" != "true" ] && ! command -v sam &> /dev/null; then
                     brew install pipx
                 fi
                 # Use pipx to install SAM CLI (works with Python's externally-managed-environment)
-                pipx install aws-sam-cli
+                # Use --pip-args to ensure all dependencies are installed
+                pipx install --pip-args="--no-cache-dir" aws-sam-cli
             fi
         else
             echo "Homebrew not found, installing via pipx..."
@@ -187,7 +186,8 @@ if [ "$SKIP_DEPENDENCY_CHECK" != "true" ] && ! command -v sam &> /dev/null; then
                 }
             fi
             # Use pipx to install SAM CLI
-            pipx install aws-sam-cli
+            # Use --pip-args to ensure all dependencies are installed
+            pipx install --pip-args="--no-cache-dir" aws-sam-cli
         fi
     elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
         # Linux - use pip with optimization flags
