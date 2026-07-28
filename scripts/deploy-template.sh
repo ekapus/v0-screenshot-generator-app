@@ -31,6 +31,11 @@ ALLOWED_HOSTNAMES="localhost,example.com"
 # If you leave this empty, a unique bucket will be created
 S3_BUCKET=""
 
+# Skip dependency checks (set to "true" if you already have AWS CLI and SAM CLI installed)
+# Set to "true" to skip checking/installing AWS CLI and SAM CLI
+# Set to "false" or leave empty to check and install dependencies automatically
+SKIP_DEPENDENCY_CHECK="false"
+
 # ============================================================================
 # DEPLOYMENT SCRIPT - DO NOT MODIFY BELOW THIS LINE
 # ============================================================================
@@ -68,14 +73,19 @@ echo "  Allowed Hostnames: $ALLOWED_HOSTNAMES"
 echo ""
 
 # Check prerequisites and install if missing
-echo "Checking prerequisites..."
-echo ""
-echo "Note: First run may take 5-10 minutes if tools need to be installed."
-echo "This is normal - dependencies are being compiled. Please be patient."
-echo ""
+if [ "$SKIP_DEPENDENCY_CHECK" = "true" ]; then
+    echo "Skipping dependency checks (SKIP_DEPENDENCY_CHECK=true)"
+    echo ""
+else
+    echo "Checking prerequisites..."
+    echo ""
+    echo "Note: First run may take 5-10 minutes if tools need to be installed."
+    echo "This is normal - dependencies are being compiled. Please be patient."
+    echo ""
+fi
 
 # Check and install AWS CLI
-if ! command -v aws &> /dev/null; then
+if [ "$SKIP_DEPENDENCY_CHECK" != "true" ] && ! command -v aws &> /dev/null; then
     echo "AWS CLI not found. Installing (this may take 2-3 minutes)..."
     
     # Detect OS
@@ -126,16 +136,24 @@ if ! command -v aws &> /dev/null; then
     fi
 fi
 
-if ! command -v aws &> /dev/null; then
-    echo "ERROR: Failed to install AWS CLI"
-    exit 1
+if [ "$SKIP_DEPENDENCY_CHECK" != "true" ]; then
+    if ! command -v aws &> /dev/null; then
+        echo "ERROR: Failed to install AWS CLI"
+        exit 1
+    fi
+    echo "✓ AWS CLI found: $(aws --version)"
+else
+    # Just verify AWS CLI exists when skipping dependency check
+    if ! command -v aws &> /dev/null; then
+        echo "ERROR: AWS CLI is not installed"
+        echo "Please install AWS CLI from: https://aws.amazon.com/cli/"
+        exit 1
+    fi
 fi
-
-echo "✓ AWS CLI found: $(aws --version)"
 echo ""
 
 # Check and install AWS SAM CLI
-if ! command -v sam &> /dev/null; then
+if [ "$SKIP_DEPENDENCY_CHECK" != "true" ] && ! command -v sam &> /dev/null; then
     echo "AWS SAM CLI not found. Installing (this may take 3-5 minutes, please be patient)..."
     
     # Detect OS
@@ -218,11 +236,21 @@ if ! command -v sam &> /dev/null; then
     hash -r
 fi
 
-echo "✓ SAM CLI found: $(sam --version)"
+if [ "$SKIP_DEPENDENCY_CHECK" != "true" ]; then
+    echo "✓ SAM CLI found: $(sam --version)"
+else
+    # Just verify SAM CLI exists when skipping dependency check
+    if ! command -v sam &> /dev/null; then
+        echo "ERROR: AWS SAM CLI is not installed"
+        echo "Please install SAM CLI from: https://aws.amazon.com/serverless/sam/"
+        exit 1
+    fi
+    echo "✓ SAM CLI found: $(sam --version)"
+fi
 echo ""
 
 # Check for Docker (required by SAM)
-if ! command -v docker &> /dev/null; then
+if [ "$SKIP_DEPENDENCY_CHECK" != "true" ] && ! command -v docker &> /dev/null; then
     echo "WARNING: Docker is not installed but is required by SAM CLI for local builds"
     echo "Please install Docker from: https://www.docker.com/products/docker-desktop"
     echo "Continuing anyway - deployment may fail if Docker is needed..."
