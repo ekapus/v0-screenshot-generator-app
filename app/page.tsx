@@ -64,7 +64,7 @@ export default function ScreenshotOGGenerator() {
         <div className="mb-12">
           <h1 className="text-4xl font-bold mb-2">OG Image Generator</h1>
           <p className="text-lg text-muted-foreground">
-            Generate dynamic OG images locally from any web page&apos;s metadata
+            Capture the rendered pixels of any whitelisted web page locally
           </p>
         </div>
 
@@ -147,10 +147,10 @@ export default function ScreenshotOGGenerator() {
               <h3 className="font-semibold mb-3">Self-hosted generation</h3>
               <div className="space-y-3 text-sm text-muted-foreground">
                 <p>
-                  No screenshot API or external rendering service is required. The server fetches the page&apos;s title and description, then creates the image locally with SVG and Sharp.
+                  No screenshot API or external rendering service is required. The server opens the target page in a headless browser and returns a PNG of its rendered viewport.
                 </p>
                 <p>
-                  For safety, local and private-network URLs are blocked. Public HTTP and HTTPS pages can be fetched without any API key or external service.
+                  Only domains listed in WHITELISTED_DOMAINS are allowed. Local and private-network URLs are blocked before the browser opens them.
                 </p>
               </div>
             </div>
