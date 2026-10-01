@@ -64,7 +64,7 @@ export default function ScreenshotOGGenerator() {
         <div className="mb-12">
           <h1 className="text-4xl font-bold mb-2">OG Image Generator</h1>
           <p className="text-lg text-muted-foreground">
-            Generate dynamic OG images by taking screenshots of web pages
+            Generate dynamic OG images locally from any web page&apos;s metadata
           </p>
         </div>
 
@@ -144,16 +144,14 @@ export default function ScreenshotOGGenerator() {
 
             {/* Setup Instructions */}
             <div className="mt-8 pt-8 border-t">
-              <h3 className="font-semibold mb-3">Setup for Production</h3>
+              <h3 className="font-semibold mb-3">Self-hosted generation</h3>
               <div className="space-y-3 text-sm text-muted-foreground">
                 <p>
-                  This app uses <a href="https://screenshotone.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">screenshotone.com</a> to capture screenshots. To use in production:
+                  No screenshot API or external rendering service is required. The server fetches the page&apos;s title and description, then creates the image locally with SVG and Sharp.
                 </p>
-                <ol className="list-decimal list-inside space-y-2">
-                  <li>Get a free API key from screenshotone.com</li>
-                  <li>Set the <code className="bg-muted px-2 py-1 rounded">SCREENSHOT_API_KEY</code> environment variable in your Vercel project</li>
-                  <li>Use the API endpoint URL in your page metadata</li>
-                </ol>
+                <p>
+                  For safety, local and private-network URLs are blocked. Public HTTP and HTTPS pages can be fetched without any API key or external service.
+                </p>
               </div>
             </div>
           </Card>
