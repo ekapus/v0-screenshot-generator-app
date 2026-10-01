@@ -9,7 +9,15 @@ function isAllowedUrl(value: string) {
 
   const hostname = url.hostname.toLowerCase();
   const isPrivateIpv4 = /^(10|127|169\.254|192\.168|172\.(1[6-9]|2\d|3[0-1]))\./.test(hostname);
-  return hostname !== 'localhost' && hostname !== '::1' && !isPrivateIpv4;
+  const isPrivateHostname = hostname === 'localhost' || hostname === '::1' || hostname.endsWith('.localhost') || hostname.endsWith('.local');
+  if (isPrivateHostname || isPrivateIpv4) return false;
+
+  const allowedDomains = (process.env.WHITELISTED_DOMAINS || '')
+    .split(',')
+    .map((domain) => domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, ''))
+    .filter(Boolean);
+
+  return allowedDomains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
 }
 
 function getMeta(html: string, name: string) {
